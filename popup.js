@@ -1,6 +1,6 @@
 // Study Buddy — popup logic
 const $ = (sel) => document.querySelector(sel);
- 
+
 let settings = {
     provider: "gemini",
     geminiKeys: [],
@@ -10,7 +10,7 @@ let settings = {
     answerStyle: "quick",
     modelsByProvider: {},
 };
- 
+
 const GEMINI_MODELS = [
     { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash (recommended)" },
     { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
@@ -18,19 +18,19 @@ const GEMINI_MODELS = [
     { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
     { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
 ];
- 
+
 const GROQ_MODELS = [
     { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B (recommended)" },
     { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B" },
     { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
     { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
 ];
- 
+
 const DEFAULT_MODELS = {
     groq: "openai/gpt-oss-120b",
     gemini: "gemini-3.6-flash",
 };
- 
+
 const els = {
     settingsToggle: $("#settingsToggle"),
     closeSettingsBtn: $("#closeSettingsBtn"),
@@ -61,20 +61,20 @@ const els = {
     qStyleExplainBtn: $("#qStyleExplainBtn"),
     quickModelSelect: $("#quickModelSelect"),
 };
- 
+
 init();
- 
+
 async function init() {
     const res = await chrome.runtime.sendMessage({ type: "getSettings" });
     if (res && res.ok) settings = res.settings;
- 
+
     els.providerSelect.value = settings.provider || "gemini";
     els.autoScanToggle.checked = settings.autoScan !== false;
     renderProviderUI(settings.provider || "gemini");
     populateModelSelect(settings.provider || "gemini");
     setAnswerStyleUI(settings.answerStyle || "quick");
     populateQuickModelSelect();
- 
+
     els.settingsToggle.addEventListener("click", () =>
         els.settingsPanel.classList.remove("hidden"),
     );
@@ -84,7 +84,7 @@ async function init() {
     els.backBtn.addEventListener("click", showMainView);
     els.scanBtn.addEventListener("click", scanPage);
     els.clearBtn.addEventListener("click", clearHighlights);
- 
+
     els.providerSelect.addEventListener("change", () => {
         const p = els.providerSelect.value;
         els.groqFields.classList.toggle("hidden", p !== "groq");
@@ -92,7 +92,7 @@ async function init() {
         populateModelSelect(p);
         populateQuickModelSelect();
     });
- 
+
     els.addKeyBtn.addEventListener("click", (e) => {
         e.preventDefault();
         addKeyRow(els.apiKeyList, "");
@@ -103,9 +103,9 @@ async function init() {
         addKeyRow(els.geminiKeyList, "");
         els.geminiKeyList.querySelector(".key-input:last-child")?.focus();
     });
- 
+
     els.saveSettings.addEventListener("click", saveSettings);
- 
+
     els.qStyleQuickBtn.addEventListener("click", () =>
         applyAnswerStyle("quick"),
     );
@@ -121,15 +121,15 @@ async function init() {
         settings.model = model;
         persistSettings();
     });
- 
+
     setStatus("Ready.", "ok");
 }
- 
+
 function showMainView() {
     els.answerView.classList.add("hidden");
     els.mainView.classList.remove("hidden");
 }
- 
+
 async function scanPage() {
     els.scanBtn.disabled = true;
     els.scanBtn.textContent = "Scanning…";
@@ -168,7 +168,7 @@ async function scanPage() {
         els.scanBtn.textContent = "🔍 Scan this page";
     }
 }
- 
+
 async function clearHighlights() {
     try {
         const tab = await getActiveTab();
@@ -177,7 +177,7 @@ async function clearHighlights() {
     renderQuestionList([]);
     setStatus("Highlights cleared.", "ok");
 }
- 
+
 async function getActiveTab() {
     const [tab] = await chrome.tabs.query({
         active: true,
@@ -186,7 +186,7 @@ async function getActiveTab() {
     if (!tab || tab.id == null) throw new Error("No active tab");
     return tab;
 }
- 
+
 async function ensureContentScript(tabId) {
     try {
         await chrome.scripting.executeScript({
@@ -201,7 +201,7 @@ async function ensureContentScript(tabId) {
         });
     } catch (_) {}
 }
- 
+
 function renderQuestionList(list) {
     const questions = list.map((q, i) => ({ text: q.text, index: i }));
     els.emptyState.classList.toggle("hidden", questions.length > 0);
@@ -211,10 +211,7 @@ function renderQuestionList(list) {
         const li = document.createElement("li");
         li.setAttribute("tabindex", "0");
         li.setAttribute("role", "button");
-        li.setAttribute(
-            "aria-label",
-            `Question ${q.index + 1}: ${q.text}`,
-        );
+        li.setAttribute("aria-label", `Question ${q.index + 1}: ${q.text}`);
         const num = document.createElement("span");
         num.className = "question-num";
         num.textContent = String(q.index + 1);
@@ -239,7 +236,7 @@ function renderQuestionList(list) {
         els.questionList.appendChild(li);
     }
 }
- 
+
 function renderProviderUI(provider) {
     els.providerSelect.value = provider;
     els.groqFields.classList.toggle("hidden", provider !== "groq");
@@ -253,7 +250,7 @@ function renderProviderUI(provider) {
             addKeyRow(els.geminiKeyList, k);
     }
 }
- 
+
 function populateModelSelect(provider) {
     const select = els.modelSelect;
     select.innerHTML = "";
@@ -272,10 +269,10 @@ function populateModelSelect(provider) {
         ? settings.model
         : DEFAULT_MODELS[provider] || models[0].id;
 }
- 
+
 function addKeyRow(container, value) {
     const row = document.createElement("div");
-    row.className = "key-row";
+    row.className = "key_row";
     const input = document.createElement("input");
     input.type = "password";
     input.className = "key-input";
@@ -291,13 +288,13 @@ function addKeyRow(container, value) {
     row.appendChild(removeBtn);
     container.appendChild(row);
 }
- 
+
 function getKeyValues(container) {
     return Array.from(container.querySelectorAll(".key-input"))
         .map((i) => i.value.trim())
         .filter((v) => v.length > 0);
 }
- 
+
 async function saveSettings() {
     els.settingsMsg.className = "msg";
     const provider = els.providerSelect.value;
@@ -335,7 +332,7 @@ async function saveSettings() {
         els.settingsMsg.classList.add("error");
     }
 }
- 
+
 function setAnswerStyleUI(style) {
     const isQuick = style !== "explain";
     els.qStyleQuickBtn.classList.toggle("active", isQuick);
@@ -343,7 +340,7 @@ function setAnswerStyleUI(style) {
     els.qStyleQuickBtn.setAttribute("aria-checked", String(isQuick));
     els.qStyleExplainBtn.setAttribute("aria-checked", String(!isQuick));
 }
- 
+
 async function applyAnswerStyle(style) {
     if (settings.answerStyle === style) return;
     setAnswerStyleUI(style);
@@ -358,7 +355,7 @@ async function applyAnswerStyle(style) {
         saved ? "ok" : "error",
     );
 }
- 
+
 async function persistSettings() {
     try {
         const res = await chrome.runtime.sendMessage({
@@ -370,7 +367,7 @@ async function persistSettings() {
         return false;
     }
 }
- 
+
 function populateQuickModelSelect() {
     const provider = settings.provider || "gemini";
     const models = provider === "groq" ? GROQ_MODELS : GEMINI_MODELS;
@@ -392,7 +389,7 @@ function populateQuickModelSelect() {
     select.value = useModel;
     if (settings.model !== useModel) settings.model = useModel;
 }
- 
+
 function buildConfidenceBadge(confidence) {
     const meta = {
         high: { label: "High confidence" },
@@ -405,7 +402,7 @@ function buildConfidenceBadge(confidence) {
     wrap.textContent = meta.label;
     return wrap;
 }
- 
+
 async function answerQuestion(questionText) {
     els.mainView.classList.add("hidden");
     els.answerView.classList.remove("hidden");
@@ -443,7 +440,7 @@ async function answerQuestion(questionText) {
         setStatus("Something went wrong.", "error");
     }
 }
- 
+
 function escapeHtml(s) {
     return s
         .replace(/&/g, "&amp;")
@@ -451,7 +448,7 @@ function escapeHtml(s) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
- 
+
 function renderMarkdown(html) {
     return html
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
@@ -472,7 +469,7 @@ function renderMarkdown(html) {
         })
         .join("");
 }
- 
+
 function setStatus(text, kind) {
     els.statusBar.textContent = text;
     els.statusBar.className = "status" + (kind ? " " + kind : "");

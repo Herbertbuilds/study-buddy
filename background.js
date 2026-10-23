@@ -311,7 +311,7 @@ async function answerWithGroq(question, apiKey, settings) {
 }
 
 chrome.commands.onCommand.addListener(async (command) => {
-    if (command !== "scan_page") return;
+    if (command !== "scan-page") return;
     const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
