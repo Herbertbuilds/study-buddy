@@ -8,6 +8,7 @@ let settings = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
+    styleModel: "gemini-3.6-flash",
 };
 
 const GEMINI_MODELS = [
@@ -56,6 +57,8 @@ const els = {
     modelSelect: $("#modelSelect"),
     modelHint: $("#modelHint"),
     autoScanToggle: $("#autoScanToggle"),
+    styleModelSelect: $("#styleModelSelect"),
+    styleModelRow: $("#styleModelRow"),
 };
 
 init();
@@ -68,6 +71,14 @@ async function init() {
     els.autoScanToggle.checked = settings.autoScan !== false;
     renderProviderUI(settings.provider || "gemini");
     populateModelSelect(settings.provider || "gemini");
+
+    if (settings.provider === "gemini") {
+        els.styleModelRow.classList.remove("hidden");
+        els.styleModelSelect.value =
+            settings.styleModel || settings.model || "gemini-3.6-flash";
+    } else {
+        els.styleModelRow.classList.add("hidden");
+    }
 
     els.settingsToggle.addEventListener("click", () =>
         els.settingsPanel.classList.remove("hidden"),
@@ -85,6 +96,12 @@ async function init() {
         els.groqFields.classList.toggle("hidden", p !== "groq");
         els.geminiFields.classList.toggle("hidden", p !== "gemini");
         populateModelSelect(p);
+        if (p === "groq") {
+            els.styleModelRow.classList.add("hidden");
+        } else {
+            els.styleModelRow.classList.remove("hidden");
+            populateStyleModelSelect();
+        }
     });
 
     els.addKeyBtn.addEventListener("click", (e) => {
@@ -248,6 +265,20 @@ function populateModelSelect(provider) {
         : DEFAULT_MODELS[provider] || models[0].id;
 }
 
+function populateStyleModelSelect() {
+    const select = els.styleModelSelect;
+    select.innerHTML = "";
+    for (const m of GEMINI_MODELS) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.label;
+        select.appendChild(opt);
+    }
+    select.value = GEMINI_MODELS.some((m) => m.id === settings.styleModel)
+        ? settings.styleModel
+        : settings.model || "gemini-3.6-flash";
+}
+
 function addKeyRow(container, value) {
     const row = document.createElement("div");
     row.className = "key-row";
@@ -290,6 +321,10 @@ async function saveSettings() {
         model: els.modelSelect.value,
         autoScan: els.autoScanToggle.checked,
         answerStyle: settings.answerStyle || "quick",
+        styleModel:
+            provider === "gemini"
+                ? els.styleModelSelect.value
+                : settings.styleModel || settings.model,
     };
     const res = await chrome.runtime.sendMessage({
         type: "saveSettings",

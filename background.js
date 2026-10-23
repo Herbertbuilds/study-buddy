@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
+    styleModel: "gemini-3.6-flash",
 };
 
 const GROQ_MODELS = new Set(["openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
@@ -26,6 +27,10 @@ function sanitizeSettings(raw) {
         !GEMINI_MODELS.has(merged.model)
     ) {
         merged.model = defaultModelForProvider("gemini");
+    }
+
+    if (merged.provider === "gemini" && !GEMINI_MODELS.has(merged.styleModel)) {
+        merged.styleModel = merged.model;
     }
 
     merged.geminiKeys = Array.isArray(merged.geminiKeys)

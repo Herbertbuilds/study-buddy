@@ -2,16 +2,16 @@
 (() => {
     if (window.__studyBuddyInjected) return;
     window.__studyBuddyInjected = true;
- 
+
     const MAX_QUESTIONS = 40;
     const BADGE_CLASS = "sb-badge";
     const HIGHLIGHT_CLASS = "sb-highlighted";
- 
+
     let questions = [];
     let selectBtn = null;
- 
+
     const cleanText = (el) => (el.innerText || "").replace(/\s+/g, " ").trim();
- 
+
     function depthOf(el) {
         let d = 0;
         let n = el;
@@ -21,22 +21,22 @@
         }
         return d;
     }
- 
+
     function optionMarkerCount(text) {
         const m = text.match(/(?:^|\s)([A-E])[.)]\s/g);
         return m ? m.length : 0;
     }
- 
+
     function trueFalseCount(text) {
         const m = text.match(/(?:^|\s)(true|false)(?:\s|[.,;:)]|$)/gi);
         return m ? m.length : 0;
     }
- 
+
     const inIgnoredContext = (el) =>
         !!el.closest(
             "nav,header,footer,aside,menu,script,style,noscript,template,textarea,input,select,option,svg,canvas,iframe,code,pre,[role='navigation'],[role='menu']",
         );
- 
+
     function escapeHtml(s) {
         return s
             .replace(/&/g, "&amp;")
@@ -44,7 +44,7 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
     }
- 
+
     function renderMarkdown(html) {
         return html
             .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
@@ -65,14 +65,14 @@
             })
             .join("");
     }
- 
+
     function scanQuestions() {
         questions = [];
         const selector =
             "p,li,div,span,td,th,h1,h2,h3,h4,h5,h6,label,legend,blockquote,section,dt,dd,summary";
         const all = Array.from(document.querySelectorAll(selector));
         const mcBlocks = new Set();
- 
+
         for (const el of all) {
             if (inIgnoredContext(el)) continue;
             const text = cleanText(el);
@@ -91,7 +91,7 @@
                 }
             if (!nested) mcBlocks.add(el);
         }
- 
+
         const generic = [];
         for (const el of all) {
             if (inIgnoredContext(el)) continue;
@@ -107,7 +107,7 @@
             if (/\?\s*$/.test(text)) continue;
             generic.push({ el, text });
         }
- 
+
         const seen = new Set();
         const picked = [];
         for (const c of [...mcBlocks, ...generic].sort(
@@ -119,7 +119,7 @@
             picked.push(c);
             if (picked.length >= MAX_QUESTIONS) break;
         }
- 
+
         questions = picked.map((c, i) => ({
             el: c.el,
             text: c.text,
@@ -127,7 +127,7 @@
         }));
         return questions.map((q) => ({ index: q.index, text: q.text }));
     }
- 
+
     function highlightQuestions() {
         removeHighlights();
         for (const q of questions) {
@@ -138,14 +138,14 @@
             q.el.prepend(badge);
         }
     }
- 
+
     function removeHighlights() {
         document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach((el) => {
             el.classList.remove(HIGHLIGHT_CLASS);
             el.querySelectorAll(`.${BADGE_CLASS}`).forEach((b) => b.remove());
         });
     }
- 
+
     async function askGemini(questionText) {
         try {
             const res = await chrome.runtime.sendMessage({
@@ -173,9 +173,9 @@
             throw err;
         }
     }
- 
+
     let cardEl = null;
- 
+
     function createCard(questionText) {
         dismissCard();
         cardEl = document.createElement("div");
@@ -195,7 +195,7 @@
         document.body.appendChild(cardEl);
         return cardEl;
     }
- 
+
     function showAnswerCard(anchorEl, questionText) {
         createCard(questionText);
         cardEl._anchor = anchorEl;
@@ -203,14 +203,14 @@
         hideBadges();
         loadAnswer(questionText);
     }
- 
+
     function showAnswerCardAt(rect, questionText) {
         createCard(questionText);
         positionCardAtRect(rect);
         hideBadges();
         loadAnswer(questionText);
     }
- 
+
     function loadAnswer(questionText) {
         askGemini(questionText)
             .then((answer) => {
@@ -232,12 +232,12 @@
                 body.appendChild(out);
             });
     }
- 
+
     function positionCard(anchorEl) {
         const rect = anchorEl.getBoundingClientRect();
         positionCardAtRect(rect);
     }
- 
+
     function positionCardAtRect(rect) {
         const cardW = Math.min(340, window.innerWidth - 24);
         const cardH = Math.min(420, window.innerHeight - 24);
@@ -254,7 +254,7 @@
         cardEl.style.top = top + "px";
         cardEl.style.left = left + "px";
     }
- 
+
     function dismissCard() {
         if (cardEl) {
             cardEl.remove();
@@ -264,13 +264,13 @@
                 .forEach((b) => (b.style.display = ""));
         }
     }
- 
+
     function hideBadges() {
         document
             .querySelectorAll(".sb-badge")
             .forEach((b) => (b.style.display = "none"));
     }
- 
+
     function onMouseUp(e) {
         setTimeout(() => {
             const sel = window.getSelection();
@@ -285,7 +285,7 @@
             showSelectBtn(rect, text);
         }, 10);
     }
- 
+
     function showSelectBtn(rect, text) {
         hideSelectBtn();
         selectBtn = document.createElement("button");
@@ -308,16 +308,16 @@
         selectBtn.style.top = top + "px";
         selectBtn.style.left = left + "px";
     }
- 
+
     function hideSelectBtn() {
         if (selectBtn) {
             selectBtn.remove();
             selectBtn = null;
         }
     }
- 
+
     document.addEventListener("mouseup", onMouseUp);
- 
+
     function onQuestionClick(e) {
         const q = questions.find(
             (item) => item.el === e.target || item.el.contains(e.target),
@@ -327,7 +327,7 @@
         e.stopPropagation();
         showAnswerCard(q.el, q.text);
     }
- 
+
     document.addEventListener("click", (e) => {
         if (e.target.closest(`.${HIGHLIGHT_CLASS}`)) {
             onQuestionClick(e);
@@ -336,7 +336,7 @@
         if (selectBtn && !e.target.closest(".sb-select-btn")) hideSelectBtn();
         if (cardEl && !e.target.closest(".sb-card")) dismissCard();
     });
- 
+
     window.addEventListener("scroll", () => {
         hideSelectBtn();
         if (cardEl) {
@@ -346,11 +346,11 @@
             if (q) positionCard(q.el);
         }
     });
- 
+
     window.addEventListener("resize", () => {
         if (cardEl && cardEl._anchor) positionCard(cardEl._anchor);
     });
- 
+
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message.type === "scan") {
             try {
