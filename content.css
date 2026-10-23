@@ -5,3 +5,166 @@
     border-radius: 4px !important;
     cursor: pointer !important;
 }
+
+.sb-badge {
+    display: inline-block !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    line-height: 18px !important;
+    padding: 0 5px !important;
+    margin-right: 6px !important;
+    background: #4f46e5 !important;
+    color: #fff !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    border-radius: 999px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+
+.sb-card {
+    position: fixed !important;
+    z-index: 2147483647 !important;
+    width: 340px !important;
+    max-height: 420px !important;
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 14px !important;
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+.sb-card-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 9px 12px !important;
+    background: #4f46e5 !important;
+    color: #fff !important;
+}
+
+.sb-card-title {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+}
+
+.sb-card-close {
+    border: none !important;
+    background: transparent !important;
+    color: #fff !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    padding: 0 4px !important;
+    border-radius: 6px !important;
+}
+
+.sb-card-close:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.sb-card-question {
+    padding: 10px 12px !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+    color: #6b7280 !important;
+    font-size: 13px !important;
+    max-height: 90px !important;
+    overflow-y: auto !important;
+    flex: 0 0 auto !important;
+}
+
+.sb-card-body {
+    padding: 12px !important;
+    overflow-y: auto !important;
+    flex: 1 1 auto !important;
+}
+
+.sb-card-answer {
+    color: #111827 !important;
+}
+
+.sb-card-answer p {
+    margin: 0 0 8px !important;
+}
+
+.sb-card-answer p:last-child {
+    margin-bottom: 0 !important;
+}
+
+.sb-card-answer ul {
+    margin: 0 0 8px !important;
+    padding-left: 20px !important;
+}
+
+.sb-card-answer code {
+    background: #f3f4f6 !important;
+    border-radius: 4px !important;
+    padding: 1px 4px !important;
+    font-size: 12.5px !important;
+}
+
+.sb-card-error {
+    color: #b91c1c !important;
+    font-size: 13px !important;
+}
+
+.sb-card-confidence {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin: 0 0 8px !important;
+    padding: 3px 10px !important;
+    border-radius: 999px !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+}
+
+.sb-card-confidence::before {
+    content: "" !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    background: currentColor !important;
+}
+
+.sb-confidence-high {
+    background: #ecfdf5 !important;
+    color: #15803d !important;
+}
+
+.sb-confidence-medium {
+    background: #fffbeb !important;
+    color: #b45309 !important;
+}
+
+.sb-confidence-low {
+    background: #fef2f2 !important;
+    color: #dc2626 !important;
+}
+
+.sb-select-btn {
+    position: fixed !important;
+    z-index: 2147483646 !important;
+    border: none !important;
+    background: #4f46e5 !important;
+    color: #fff !important;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    padding: 6px 12px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.sb-select-btn:hover {
+    background: #4338ca !important;
+}

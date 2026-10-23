@@ -4,6 +4,7 @@
     "version": "0.1.0",
     "description": "Turn on-page questions into study material.",
     "permissions": ["activeTab", "storage", "scripting"],
+    "host_permissions": ["<all_urls>"],
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
