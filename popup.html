@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Study Buddy</title>
+        <link rel="stylesheet" href="popup.css" />
+    </head>
+    <body>
+        <div class="sb-popup">
+            <header class="sb-header">
+                <h1 class="sb-title">Study Buddy</h1>
+                <button
+                    type="button"
+                    class="sb-icon-btn"
+                    id="themeToggle"
+                    aria-label="Toggle theme"
+                >
+                    <span class="sb-icon"></span>
+                </button>
+            </header>
+
+            <main class="sb-main">
+                <section class="sb-section">
+                    <h2 class="sb-section-title">Scan this page</h2>
+                    <p class="sb-section-desc">
+                        Highlight questions on the active tab and open an answer
+                        card.
+                    </p>
+                    <button type="button" class="sb-primary-btn" id="scanBtn">
+                        Scan this page
+                    </button>
+                    <p class="sb-shortcut-hint">
+                        Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>
+                    </p>
+                </section>
+
+                <section class="sb-section">
+                    <h2 class="sb-section-title">Provider</h2>
+                    <p class="sb-section-desc">
+                        Choose where answers come from.
+                    </p>
+                    <div class="sb-providers" id="providerList"></div>
+                </section>
+
+                <section class="sb-section sb-settings-section">
+                    <h2 class="sb-section-title">Settings</h2>
+                    <label class="sb-field">
+                        <span>Auto scan</span>
+                        <input
+                            type="checkbox"
+                            id="autoScanToggle"
+                            class="sb-switch"
+                        />
+                    </label>
+                    <label class="sb-field">
+                        <span>Indentation</span>
+                        <select id="indentSelect" class="sb-select">
+                            <option value="smart">Smart</option>
+                            <option value="tabs">Tabs</option>
+                            <option value="spaces">Spaces</option>
+                        </select>
+                    </label>
+                </section>
+            </main>
+
+            <footer class="sb-footer">
+                <span class="sb-footer-status" id="statusText">Ready</span>
+            </footer>
+        </div>
+
+        <script src="popup.js"></script>
+    </body>
+</html>
