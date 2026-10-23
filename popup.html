@@ -1,73 +1,136 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
     <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Study Buddy</title>
+        <meta charset="UTF-8" />
         <link rel="stylesheet" href="popup.css" />
     </head>
     <body>
-        <div class="sb-popup">
-            <header class="sb-header">
-                <h1 class="sb-title">Study Buddy</h1>
-                <button
-                    type="button"
-                    class="sb-icon-btn"
-                    id="themeToggle"
-                    aria-label="Toggle theme"
-                >
-                    <span class="sb-icon"></span>
+        <header class="header">
+            <div class="header-left">
+                <span class="logo-mark">🎓</span>
+                <span class="title">Study Buddy</span>
+            </div>
+            <button
+                id="settingsToggle"
+                class="icon-btn"
+                title="Settings"
+                aria-label="Settings"
+            >
+                ⚙️
+            </button>
+        </header>
+
+        <div id="statusBar" class="status"></div>
+
+        <section id="mainView" class="main">
+            <div class="toolbar">
+                <button id="scanBtn" class="btn primary">
+                    🔍 Scan this page
                 </button>
-            </header>
+                <button id="clearBtn" class="btn ghost hidden">
+                    Clear highlights
+                </button>
+            </div>
+            <div id="emptyState" class="empty">
+                <p>
+                    Open the page with your questions, then hit
+                    <strong>Scan this page</strong>.
+                </p>
+            </div>
+            <ul id="questionList" class="question-list"></ul>
+        </section>
 
-            <main class="sb-main">
-                <section class="sb-section">
-                    <h2 class="sb-section-title">Scan this page</h2>
-                    <p class="sb-section-desc">
-                        Highlight questions on the active tab and open an answer
-                        card.
-                    </p>
-                    <button type="button" class="sb-primary-btn" id="scanBtn">
-                        Scan this page
+        <section id="answerView" class="answer hidden">
+            <button id="backBtn" class="btn ghost">← Back</button>
+            <div class="answer-question" id="answerQuestion"></div>
+            <div class="answer-body" id="answerBody"></div>
+        </section>
+
+        <section id="settingsPanel" class="panel-overlay hidden">
+            <div class="panel-header">
+                <span class="panel-title">Settings</span>
+                <button
+                    id="closeSettingsBtn"
+                    class="icon-btn"
+                    aria-label="Close settings"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <label class="field">
+                <span class="field-label">AI Provider</span>
+                <select id="providerSelect" class="select-input">
+                    <option value="groq">
+                        Groq (recommended — fast, generous free tier)
+                    </option>
+                    <option value="gemini">Google Gemini</option>
+                </select>
+            </label>
+
+            <div id="groqFields" class="key-section">
+                <div class="field">
+                    <span class="field-label"
+                        >Groq API key <span class="required">*</span></span
+                    >
+                    <div id="apiKeyList" class="key-list"></div>
+                    <button id="addKeyBtn" class="btn-add-key">
+                        + Add another key
                     </button>
-                    <p class="sb-shortcut-hint">
-                        Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>
-                    </p>
-                </section>
+                </div>
+                <p class="hint">
+                    Free key, no credit card — get one at
+                    <a
+                        href="https://console.groq.com/keys"
+                        target="_blank"
+                        rel="noopener"
+                        >console.groq.com/keys</a
+                    >
+                    (Groq hosts OpenAI-format models only — no Gemini models
+                    available).
+                </p>
+            </div>
 
-                <section class="sb-section">
-                    <h2 class="sb-section-title">Provider</h2>
-                    <p class="sb-section-desc">
-                        Choose where answers come from.
-                    </p>
-                    <div class="sb-providers" id="providerList"></div>
-                </section>
+            <div id="geminiFields" class="key-section hidden">
+                <div class="field">
+                    <span class="field-label"
+                        >Gemini API keys <span class="required">*</span></span
+                    >
+                    <div id="geminiKeyList" class="key-list"></div>
+                    <button id="addGeminiKeyBtn" class="btn-add-key">
+                        + Add another key
+                    </button>
+                </div>
+                <p class="hint">
+                    Free key, no credit card — get one at
+                    <a
+                        href="https://aistudio.google.com/apikey"
+                        target="_blank"
+                        rel="noopener"
+                        >aistudio.google.com/apikey</a
+                    >
+                </p>
+            </div>
 
-                <section class="sb-section sb-settings-section">
-                    <h2 class="sb-section-title">Settings</h2>
-                    <label class="sb-field">
-                        <span>Auto scan</span>
-                        <input
-                            type="checkbox"
-                            id="autoScanToggle"
-                            class="sb-switch"
-                        />
-                    </label>
-                    <label class="sb-field">
-                        <span>Indentation</span>
-                        <select id="indentSelect" class="sb-select">
-                            <option value="smart">Smart</option>
-                            <option value="tabs">Tabs</option>
-                            <option value="spaces">Spaces</option>
-                        </select>
-                    </label>
-                </section>
-            </main>
+            <label class="field">
+                <span class="field-label">Model</span>
+                <select id="modelSelect" class="select-input"></select>
+            </label>
+            <p class="hint" id="modelHint"></p>
 
-            <footer class="sb-footer">
-                <span class="sb-footer-status" id="statusText">Ready</span>
-            </footer>
-        </div>
+            <div class="toggle-row">
+                <span class="field-label">Auto-scan page on load</span>
+                <label class="toggle">
+                    <input type="checkbox" id="autoScanToggle" />
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <button id="saveSettings" class="btn primary">Save settings</button>
+            <div id="settingsMsg" class="msg"></div>
+        </section>
+
+        <footer class="footer">Study smarter, not harder.</footer>
 
         <script src="popup.js"></script>
     </body>
