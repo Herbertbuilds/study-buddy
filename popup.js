@@ -8,7 +8,7 @@ let settings = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
-    styleModel: "gemini-3.6-flash",
+    modelsByProvider: {},
 };
 
 const GEMINI_MODELS = [
@@ -57,8 +57,9 @@ const els = {
     modelSelect: $("#modelSelect"),
     modelHint: $("#modelHint"),
     autoScanToggle: $("#autoScanToggle"),
-    styleModelSelect: $("#styleModelSelect"),
-    styleModelRow: $("#styleModelRow"),
+    qStyleQuickBtn: $("#qStyleQuickBtn"),
+    qStyleExplainBtn: $("#qStyleExplainBtn"),
+    quickModelSelect: $("#quickModelSelect"),
 };
 
 init();
@@ -71,14 +72,8 @@ async function init() {
     els.autoScanToggle.checked = settings.autoScan !== false;
     renderProviderUI(settings.provider || "gemini");
     populateModelSelect(settings.provider || "gemini");
-
-    if (settings.provider === "gemini") {
-        els.styleModelRow.classList.remove("hidden");
-        els.styleModelSelect.value =
-            settings.styleModel || settings.model || "gemini-3.6-flash";
-    } else {
-        els.styleModelRow.classList.add("hidden");
-    }
+    setAnswerStyleUI(settings.answerStyle || "quick");
+    populateQuickModelSelect();
 
     els.settingsToggle.addEventListener("click", () =>
         els.settingsPanel.classList.remove("hidden"),
@@ -87,7 +82,6 @@ async function init() {
         els.settingsPanel.classList.add("hidden"),
     );
     els.backBtn.addEventListener("click", showMainView);
-
     els.scanBtn.addEventListener("click", scanPage);
     els.clearBtn.addEventListener("click", clearHighlights);
 
@@ -96,12 +90,7 @@ async function init() {
         els.groqFields.classList.toggle("hidden", p !== "groq");
         els.geminiFields.classList.toggle("hidden", p !== "gemini");
         populateModelSelect(p);
-        if (p === "groq") {
-            els.styleModelRow.classList.add("hidden");
-        } else {
-            els.styleModelRow.classList.remove("hidden");
-            populateStyleModelSelect();
-        }
+        populateQuickModelSelect();
     });
 
     els.addKeyBtn.addEventListener("click", (e) => {
@@ -116,6 +105,22 @@ async function init() {
     });
 
     els.saveSettings.addEventListener("click", saveSettings);
+
+    els.qStyleQuickBtn.addEventListener("click", () =>
+        applyAnswerStyle("quick"),
+    );
+    els.qStyleExplainBtn.addEventListener("click", () =>
+        applyAnswerStyle("explain"),
+    );
+    els.quickModelSelect.addEventListener("change", () => {
+        const model = els.quickModelSelect.value;
+        if (!model) return;
+        const provider = settings.provider || "gemini";
+        settings.modelsByProvider = settings.modelsByProvider || {};
+        settings.modelsByProvider[provider] = model;
+        settings.model = model;
+        persistSettings();
+    });
 
     setStatus("Ready.", "ok");
 }
@@ -265,20 +270,6 @@ function populateModelSelect(provider) {
         : DEFAULT_MODELS[provider] || models[0].id;
 }
 
-function populateStyleModelSelect() {
-    const select = els.styleModelSelect;
-    select.innerHTML = "";
-    for (const m of GEMINI_MODELS) {
-        const opt = document.createElement("option");
-        opt.value = m.id;
-        opt.textContent = m.label;
-        select.appendChild(opt);
-    }
-    select.value = GEMINI_MODELS.some((m) => m.id === settings.styleModel)
-        ? settings.styleModel
-        : settings.model || "gemini-3.6-flash";
-}
-
 function addKeyRow(container, value) {
     const row = document.createElement("div");
     row.className = "key-row";
@@ -321,10 +312,7 @@ async function saveSettings() {
         model: els.modelSelect.value,
         autoScan: els.autoScanToggle.checked,
         answerStyle: settings.answerStyle || "quick",
-        styleModel:
-            provider === "gemini"
-                ? els.styleModelSelect.value
-                : settings.styleModel || settings.model,
+        modelsByProvider: settings.modelsByProvider || {},
     };
     const res = await chrome.runtime.sendMessage({
         type: "saveSettings",
@@ -345,6 +333,76 @@ async function saveSettings() {
     }
 }
 
+function setAnswerStyleUI(style) {
+    const isQuick = style !== "explain";
+    els.qStyleQuickBtn.classList.toggle("active", isQuick);
+    els.qStyleExplainBtn.classList.toggle("active", !isQuick);
+    els.qStyleQuickBtn.setAttribute("aria-checked", String(isQuick));
+    els.qStyleExplainBtn.setAttribute("aria-checked", String(!isQuick));
+}
+
+async function applyAnswerStyle(style) {
+    if (settings.answerStyle === style) return;
+    setAnswerStyleUI(style);
+    settings.answerStyle = style;
+    const saved = await persistSettings();
+    setStatus(
+        saved
+            ? style === "explain"
+                ? "Explain mode on."
+                : "Quick answers on."
+            : "Could not save — try again.",
+        saved ? "ok" : "error",
+    );
+}
+
+async function persistSettings() {
+    try {
+        const res = await chrome.runtime.sendMessage({
+            type: "saveSettings",
+            settings,
+        });
+        return !!(res && res.ok);
+    } catch {
+        return false;
+    }
+}
+
+function populateQuickModelSelect() {
+    const provider = settings.provider || "gemini";
+    const models = provider === "groq" ? GROQ_MODELS : GEMINI_MODELS;
+    const select = els.quickModelSelect;
+    select.innerHTML = "";
+    for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.label;
+        select.appendChild(opt);
+    }
+    const remembered = settings.modelsByProvider?.[provider];
+    const useModel =
+        remembered && models.some((m) => m.id === remembered)
+            ? remembered
+            : models.some((m) => m.id === settings.model)
+              ? settings.model
+              : DEFAULT_MODELS[provider] || models[0].id;
+    select.value = useModel;
+    if (settings.model !== useModel) settings.model = useModel;
+}
+
+function buildConfidenceBadge(confidence) {
+    const meta = {
+        high: { label: "High confidence" },
+        medium: { label: "Medium confidence" },
+        low: { label: "Low confidence — double-check" },
+    }[confidence];
+    if (!meta) return null;
+    const wrap = document.createElement("div");
+    wrap.className = "confidence-badge confidence-" + confidence;
+    wrap.textContent = meta.label;
+    return wrap;
+}
+
 async function answerQuestion(questionText) {
     els.mainView.classList.add("hidden");
     els.answerView.classList.remove("hidden");
@@ -358,6 +416,10 @@ async function answerQuestion(questionText) {
         });
         els.answerBody.innerHTML = "";
         if (res && res.ok) {
+            if (res.confidence) {
+                const badge = buildConfidenceBadge(res.confidence);
+                if (badge) els.answerBody.appendChild(badge);
+            }
             const out = document.createElement("div");
             out.innerHTML = renderMarkdown(escapeHtml(res.answer));
             els.answerBody.appendChild(out);

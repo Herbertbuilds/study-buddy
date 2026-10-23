@@ -23,6 +23,44 @@
         <div id="statusBar" class="status"></div>
 
         <section id="mainView" class="main">
+            <div class="quick-controls">
+                <div
+                    class="style-toggle"
+                    role="radiogroup"
+                    aria-label="Answer style"
+                >
+                    <button
+                        type="button"
+                        id="qStyleQuickBtn"
+                        class="style-btn"
+                        data-style="quick"
+                        role="radio"
+                        aria-checked="true"
+                        title="Quick: direct answer + short reason"
+                    >
+                        ⚡ Quick
+                    </button>
+                    <button
+                        type="button"
+                        id="qStyleExplainBtn"
+                        class="style-btn"
+                        data-style="explain"
+                        role="radio"
+                        aria-checked="false"
+                        title="Explain: step-by-step tutoring"
+                    >
+                        📖 Explain
+                    </button>
+                </div>
+                <div class="model-wrap">
+                    <select
+                        id="quickModelSelect"
+                        class="select-input"
+                        title="Model — applies instantly"
+                    ></select>
+                </div>
+            </div>
+
             <div class="toolbar">
                 <button id="scanBtn" class="btn primary">
                     🔍 Scan this page
