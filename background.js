@@ -8,11 +8,23 @@ const DEFAULT_SETTINGS = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
-    styleModel: "gemini-3.6-flash",
+    modelsByProvider: {},
 };
 
-const GROQ_MODELS = new Set(["openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
-const GEMINI_MODELS = new Set(["gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+const GROQ_MODELS = new Set([
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]);
+
+const GEMINI_MODELS = new Set([
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+]);
 
 function defaultModelForProvider(provider) {
     return provider === "groq" ? "openai/gpt-oss-120b" : "gemini-3.6-flash";
@@ -29,14 +41,14 @@ function sanitizeSettings(raw) {
         merged.model = defaultModelForProvider("gemini");
     }
 
-    if (merged.provider === "gemini" && !GEMINI_MODELS.has(merged.styleModel)) {
-        merged.styleModel = merged.model;
-    }
-
     merged.geminiKeys = Array.isArray(merged.geminiKeys)
         ? merged.geminiKeys
         : [];
     merged.groqKeys = Array.isArray(merged.groqKeys) ? merged.groqKeys : [];
+    merged.modelsByProvider =
+        merged.modelsByProvider && typeof merged.modelsByProvider === "object"
+            ? merged.modelsByProvider
+            : {};
     return merged;
 }
 
@@ -91,15 +103,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             try {
                 const cached = getCachedAnswer(message.question);
                 if (cached) {
-                    sendResponse({ ok: true, answer: cached });
+                    sendResponse({
+                        ok: true,
+                        answer: cached.text,
+                        confidence: cached.confidence,
+                    });
                     return;
                 }
-                const text = await answerWithKeyRotation(
+                const answer = await answerWithKeyRotation(
                     message.question,
                     settings,
                 );
-                setCachedAnswer(message.question, text);
-                sendResponse({ ok: true, answer: text });
+                setCachedAnswer(message.question, answer);
+                sendResponse({
+                    ok: true,
+                    answer: answer.text,
+                    confidence: answer.confidence,
+                });
             } catch (err) {
                 sendResponse({ ok: false, error: friendlyError(err) });
             }
@@ -113,13 +133,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const answerCache = new Map();
 
-const QUICK_PROMPT = `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**, then 1-2 sentences explaining why. For other questions, give a clear, complete answer. Keep answers brief but never cut them short — finish your thought.`;
+const CONFIDENCE_RE = /\n?\[\[confidence:\s*(high|medium|low)\]\]\s*$/i;
 
-const EXPLAIN_PROMPT = `You are a tutor helping a student understand, not just answer. Structure your reply as:
+const CONFIDENCE_INSTRUCTION = `\nAfter your answer, on the very last line, rate your confidence that the answer is correct by writing exactly one of:
+[[confidence: high]]  [[confidence: medium]]  [[confidence: low]]
+Use "high" only when you are sure; "medium" when reasonably sure but some doubt; "low" when the question is ambiguous, options are unclear, or you are mostly guessing. Never omit the line.`;
+
+const QUICK_PROMPT =
+    `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**.` +
+    CONFIDENCE_INSTRUCTION;
+
+const EXPLAIN_PROMPT =
+    `You are a tutor helping a student understand, not just answer. Structure your reply as:
 1. **Answer:** the answer in **bold** (for MCQs, the letter AND option text).
 2. **Why:** a step-by-step explanation of the reasoning, referencing the relevant concepts. 3-6 sentences for MCQs, more for open questions.
 3. If the other options (or the common wrong approach) are tempting, add one line starting with "Watch out:" explaining the most likely mistake.
-Keep the tone direct and clear. Never cut your explanation short — finish your thought.`;
+Keep the tone direct and clear. Never cut your explanation short — finish your thought.` +
+    CONFIDENCE_INSTRUCTION;
+
+function maxTokensFor(settings) {
+    return settings.answerStyle === "explain" ? 900 : 300;
+}
+
+function parseConfidence(text) {
+    const m = text.match(CONFIDENCE_RE);
+    const clean = m ? text.replace(CONFIDENCE_RE, "").trim() : text.trim();
+    return { text: clean, confidence: m ? m[1].toLowerCase() : null };
+}
 
 function saveCacheKey(question) {
     return question.trim().toLowerCase().slice(0, 400);
@@ -127,14 +167,17 @@ function saveCacheKey(question) {
 
 function getCachedAnswer(question) {
     const entry = answerCache.get(saveCacheKey(question));
-    if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS)
-        return entry.answer;
+    if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) return entry;
     answerCache.delete(saveCacheKey(question));
     return null;
 }
 
 function setCachedAnswer(question, answer) {
-    answerCache.set(saveCacheKey(question), { answer, timestamp: Date.now() });
+    answerCache.set(saveCacheKey(question), {
+        text: answer.text,
+        confidence: answer.confidence,
+        timestamp: Date.now(),
+    });
     if (answerCache.size > 100) {
         answerCache.delete(answerCache.keys().next().value);
     }
@@ -179,9 +222,9 @@ async function answerWithKeyRotation(question, settings) {
     for (let attempt = 0; attempt < keys.length; attempt++) {
         const idx = (currentKeyIndex + attempt) % keys.length;
         try {
-            const out = await callFn(question, keys[idx], settings);
+            const raw = await callFn(question, keys[idx], settings);
             currentKeyIndex = idx;
-            return out;
+            return parseConfidence(raw);
         } catch (err) {
             const msg = String(err?.message || "");
             if (isQuotaOrRateError(msg) && attempt < keys.length - 1) {
@@ -219,7 +262,7 @@ async function answerWithGemini(question, apiKey, settings) {
             },
             generationConfig: {
                 temperature: 0.2,
-                maxOutputTokens: settings.answerStyle === "explain" ? 900 : 300,
+                maxOutputTokens: maxTokensFor(settings),
             },
         }),
     });
@@ -256,7 +299,7 @@ async function answerWithGroq(question, apiKey, settings) {
                 { role: "user", content: question },
             ],
             temperature: 0.2,
-            max_tokens: settings.answerStyle === "explain" ? 900 : 300,
+            max_tokens: maxTokensFor(settings),
         }),
     });
     const data = await res.json().catch(() => ({}));

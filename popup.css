@@ -241,30 +241,6 @@ body {
     }
 }
 
-.sb-highlighted {
-    background: rgba(79, 70, 229, 0.08) !important;
-    outline: 1.5px dashed rgba(79, 70, 229, 0.55) !important;
-    outline-offset: 2px !important;
-    border-radius: 4px !important;
-    cursor: pointer !important;
-}
-
-.sb-badge {
-    display: inline-block !important;
-    min-width: 18px !important;
-    height: 18px !important;
-    line-height: 18px !important;
-    padding: 0 5px !important;
-    margin-right: 6px !important;
-    background: #4f46e5 !important;
-    color: #fff !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    border-radius: 999px !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-}
-
 .field {
     display: flex;
     flex-direction: column;
@@ -332,7 +308,7 @@ body {
     line-height: 1.5;
 }
 
-.togglerow {
+.toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
