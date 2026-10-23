@@ -1,0 +1,7 @@
+.sb-highlighted {
+    background: rgba(79, 70, 229, 0.08) !important;
+    outline: 1.5px dashed rgba(79, 70, 229, 0.55) !important;
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+}
