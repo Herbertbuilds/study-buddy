@@ -23,6 +23,22 @@
         <div id="statusBar" class="status"></div>
 
         <section id="mainView" class="main">
+            <div class="provider-toggle">
+                <button
+                    id="switchToGroqBtn"
+                    class="provider-btn"
+                    data-provider="groq"
+                >
+                    Groq
+                </button>
+                <button
+                    id="switchToGeminiBtn"
+                    class="provider-btn"
+                    data-provider="gemini"
+                >
+                    Gemini
+                </button>
+            </div>
             <div class="quick-controls">
                 <div
                     class="style-toggle"
@@ -113,7 +129,7 @@
                     >
                     <div id="apiKeyList" class="key-list"></div>
                     <button id="addKeyBtn" class="btn-add-key">
-                        + Add another key
+                        + Add a key
                     </button>
                 </div>
                 <p class="hint">
@@ -134,7 +150,7 @@
                     >
                     <div id="geminiKeyList" class="key-list"></div>
                     <button id="addGeminiKeyBtn" class="btn-add-key">
-                        + Add another key
+                        + Add a key
                     </button>
                 </div>
                 <p class="hint">
@@ -154,10 +170,18 @@
             </label>
             <p class="hint" id="modelHint"></p>
 
-            <div class="toggle_row">
+            <div class="toggle-row">
                 <span class="field-label">Auto-scan page on load</span>
                 <label class="toggle">
                     <input type="checkbox" id="autoScanToggle" />
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-row">
+                <span class="field-label">Dark mode</span>
+                <label class="toggle">
+                    <input type="checkbox" id="darkModeToggle" />
                     <span class="toggle-slider"></span>
                 </label>
             </div>

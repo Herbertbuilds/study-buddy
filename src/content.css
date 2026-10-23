@@ -174,3 +174,55 @@
         transform: rotate(360deg);
     }
 }
+
+/* Dark theme — follows the popup's dark mode setting */
+.sb-card.sb-dark {
+    background: #17161b !important;
+    border-color: #3a383f !important;
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+.sb-dark .sb-card-head {
+    background: #312e81 !important;
+}
+.sb-dark .sb-card-close:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+.sb-dark .sb-card-question {
+    color: #9b9895 !important;
+    border-bottom-color: #2b2a30 !important;
+}
+.sb-dark .sb-card-answer {
+    color: #f1f0ee !important;
+}
+.sb-dark .sb-card-answer code {
+    background: #232227 !important;
+    color: #e4e4e7 !important;
+}
+.sb-dark .sb-card-error {
+    color: #f87171 !important;
+}
+.sb-dark .sb-confidence-high {
+    background: #062b1a !important;
+    color: #4ade80 !important;
+}
+.sb-dark .sb-confidence-medium {
+    background: #302a17 !important;
+    color: #fbbf24 !important;
+}
+.sb-dark .sb-confidence-low {
+    background: #331714 !important;
+    color: #f87171 !important;
+}
+.sb-dark .sb-spinner {
+    border-color: #3a383f !important;
+    border-top-color: #6366f1 !important;
+}
+
+.sb-select-btn.sb-dark {
+    background: #6366f1 !important;
+}
+.sb-select-btn.sb-dark:hover {
+    background: #4f46e5 !important;
+}

@@ -1,6 +1,5 @@
 // Study Buddy — background service worker.
 // ---------- Settings ----------
-
 const DEFAULT_SETTINGS = {
     provider: "gemini",
     geminiKeys: [],
@@ -9,20 +8,22 @@ const DEFAULT_SETTINGS = {
     autoScan: true,
     answerStyle: "quick",
     modelsByProvider: {},
+    darkMode: false,
 };
 
+// Groq decommissioned the llama-3.3/3.1 chat models for non-Enterprise tiers
+// (Aug 2026); these IDs are the currently available ones for free keys.
 const GROQ_MODELS = new Set([
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
+    "qwen/qwen3.8-27b",
 ]);
 
 const GEMINI_MODELS = new Set([
     "gemini-3.6-flash",
-    "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
-    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]);
 
@@ -45,6 +46,7 @@ function sanitizeSettings(raw) {
         ? merged.geminiKeys
         : [];
     merged.groqKeys = Array.isArray(merged.groqKeys) ? merged.groqKeys : [];
+    merged.darkMode = merged.darkMode === true;
     merged.modelsByProvider =
         merged.modelsByProvider && typeof merged.modelsByProvider === "object"
             ? merged.modelsByProvider
@@ -88,6 +90,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === "scanDocument") {
+        documentPdfText(message.url)
+            .then((text) => sendResponse({ ok: true, text }))
+            .catch((err) =>
+                sendResponse({
+                    ok: false,
+                    error: String(err?.message || err),
+                }),
+            );
+        return true;
+    }
+
     if (message.type === "answerQuestion") {
         chrome.storage.local.get("settings").then(async ({ settings }) => {
             settings = sanitizeSettings(settings);
@@ -128,16 +142,45 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 });
 
+// ---------- PDF document scanning ----------
+
+async function documentPdfText(url) {
+    const pdfjs = await import(chrome.runtime.getURL("vendor/pdfjs/pdf.min.mjs"));
+    pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL(
+        "vendor/pdfjs/pdf.worker.min.mjs",
+    );
+    const res = await fetch(url);
+    if (!res.ok)
+        throw new Error(`Could not download the document (HTTP ${res.status}).`);
+    const data = await res.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data }).promise;
+    const maxPages = Math.min(doc.numPages, 80);
+    const pages = [];
+    for (let i = 1; i <= maxPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        pages.push(content.items.map((item) => item.str).join(" "));
+    }
+    const text = pages.join("\n\n");
+    if (!text.trim()) {
+        throw new Error(
+            "This document has no extractable text — it may be a scanned image. Try a text-based PDF.",
+        );
+    }
+    return text;
+}
+
 // ---------- AI answer pipeline ----------
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const answerCache = new Map();
+const answerCache = new Map(); // question -> { text, confidence, timestamp }
 
 const CONFIDENCE_RE = /\n?\[\[confidence:\s*(high|medium|low)\]\]\s*$/i;
 
 const CONFIDENCE_INSTRUCTION = `\nAfter your answer, on the very last line, rate your confidence that the answer is correct by writing exactly one of:
 [[confidence: high]]  [[confidence: medium]]  [[confidence: low]]
-Use "high" only when you are sure; "medium" when reasonably sure but some doubt; "low" when the question is ambiguous, options are unclear, or you are mostly guessing. Never omit the line.`;
+Use "high" only when you are certain the answer is a specific fact you know precisely; "medium" when you know the topic but not every detail; "low" when you are unsure or guessing — even for practice-style questions with an obvious-feeling answer.
+Base your explanation only on facts you know well. If any part of your explanation would require guessing, add one short line starting "I'm unsure:" naming exactly which part is uncertain. Do NOT fill gaps with invented terms, numbers, or steps, and never let confident-sounding wording exceed your actual certainty. Never omit the confidence line.`;
 
 const QUICK_PROMPT =
     `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**.` +
@@ -154,6 +197,10 @@ Keep the tone direct and clear. Never cut your explanation short — finish your
 function maxTokensFor(settings) {
     return settings.answerStyle === "explain" ? 900 : 300;
 }
+
+// gpt-oss models spend most of their token budget on hidden "reasoning" tokens
+// before writing the visible answer, so they need a much larger max_tokens.
+const GROQ_TOKEN_MULTIPLIER = 4;
 
 function parseConfidence(text) {
     const m = text.match(CONFIDENCE_RE);
@@ -280,71 +327,63 @@ async function answerWithGemini(question, apiKey, settings) {
 async function answerWithGroq(question, apiKey, settings) {
     let model = settings.model || defaultModelForProvider("groq");
     if (!GROQ_MODELS.has(model)) model = defaultModelForProvider("groq");
+    const isReasoningModel = /^openai\/gpt-oss/.test(model);
+    const body = {
+        model,
+        messages: [
+            {
+                role: "system",
+                content:
+                    settings.answerStyle === "explain"
+                        ? EXPLAIN_PROMPT
+                        : QUICK_PROMPT,
+            },
+            { role: "user", content: question },
+        ],
+        temperature: 0.2,
+        max_tokens: maxTokensFor(settings) * (isReasoningModel ? GROQ_TOKEN_MULTIPLIER : 1),
+    };
+    // gpt-oss models burn hidden reasoning tokens before answering; cap the
+    // reasoning effort so the real answer fits in the token budget.
+    if (isReasoningModel) body.reasoning_effort = "low";
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-            model,
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        settings.answerStyle === "explain"
-                            ? EXPLAIN_PROMPT
-                            : QUICK_PROMPT,
-                },
-                { role: "user", content: question },
-            ],
-            temperature: 0.2,
-            max_tokens: maxTokensFor(settings),
-        }),
+        body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-    const text = data?.choices?.[0]?.message?.content || "";
-    if (!text.trim())
+    const choice = data?.choices?.[0];
+    const text = choice?.message?.content || "";
+    if (!text.trim()) {
+        if (choice?.finish_reason === "length") {
+            throw new Error(
+                "The model ran out of tokens while thinking. Try again, or switch models in settings.",
+            );
+        }
         throw new Error("Groq returned an empty response. Try again.");
+    }
     return text.trim();
 }
 
 chrome.commands.onCommand.addListener(async (command) => {
-    if (command !== "scan-page") return;
-    const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-    });
-    if (!tab || tab.id == null) return;
-    try {
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ["content.js"],
-        });
-        await chrome.scripting.insertCSS({
-            target: { tabId: tab.id },
-            files: ["content.css"],
-        });
-    } catch (_) {
-        /* already injected */
-    }
-    try {
-        const res = await chrome.tabs.sendMessage(tab.id, { type: "scan" });
-        const count = res?.questions?.length || 0;
-        await chrome.action.setBadgeText({
-            text: String(count),
-            tabId: tab.id,
-        });
-        await chrome.action.setBadgeBackgroundColor({
-            color: count > 0 ? "#4f46e5" : "#b91c1c",
-            tabId: tab.id,
-        });
-    } catch (_) {
-        await chrome.action.setBadgeText({ text: "!", tabId: tab.id });
-        await chrome.action.setBadgeBackgroundColor({
-            color: "#b91c1c",
-            tabId: tab.id,
-        });
-    }
+  if (command !== "scan-page") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || tab.id == null) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/content.js"] });
+    await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["src/content.css"] });
+  } catch (_) { /* already injected */ }
+  try {
+    const res = await chrome.tabs.sendMessage(tab.id, { type: "scan" });
+    const count = res?.questions?.length || 0;
+    await chrome.action.setBadgeText({ text: String(count), tabId: tab.id });
+    await chrome.action.setBadgeBackgroundColor({ color: count > 0 ? "#4f46e5" : "#b91c1c", tabId: tab.id });
+  } catch (_) {
+    await chrome.action.setBadgeText({ text: "!", tabId: tab.id });
+    await chrome.action.setBadgeBackgroundColor({ color: "#b91c1c", tabId: tab.id });
+  }
 });

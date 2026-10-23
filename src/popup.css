@@ -34,6 +34,40 @@ body {
     display: none !important;
 }
 
+body.dark {
+    --surface: #17161b;
+    --surface-elevated: #232227;
+    --text-primary: #f1f0ee;
+    --text-secondary: #9b9895;
+    --border: #3a383f;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-subtle: #2e2d4a;
+    --ok: #4ade80;
+    --danger: #f87171;
+}
+body.dark .key-input {
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+}
+body.dark .confidence-high {
+    background: #062b1a;
+    color: #4ade80;
+}
+body.dark .confidence-medium {
+    background: #302a17;
+    color: #fbbf24;
+}
+body.dark .confidence-low {
+    background: #331714;
+    color: #f87171;
+}
+body.dark .style-btn.active {
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.4),
+        0 0 0 1px var(--border);
+}
+
 .header {
     display: flex;
     align-items: center;
@@ -241,31 +275,6 @@ body {
     }
 }
 
-/* injected page styles */
-.sb-highlighted {
-    background: rgba(79, 70, 229, 0.08) !important;
-    outline: 1.5px dashed rgba(79, 70, 229, 0.55) !important;
-    outline-offset: 2px !important;
-    border-radius: 4px !important;
-    cursor: pointer !important;
-}
-
-.sb-badge {
-    display: inline-block !important;
-    min-width: 18px !important;
-    height: 18px !important;
-    line-height: 18px !important;
-    padding: 0 5px !important;
-    margin-right: 6px !important;
-    background: #4f46e5 !important;
-    color: #fff !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    border-radius: 999px !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-}
-
 .field {
     display: flex;
     flex-direction: column;
@@ -333,7 +342,7 @@ body {
     line-height: 1.5;
 }
 
-.toggle_row {
+.toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -442,4 +451,26 @@ body {
 .confidence-low {
     background: #fef2f2;
     color: #dc2626;
+}
+
+.provider-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.provider-btn {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.provider-btn.active {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border-color: var(--accent);
 }

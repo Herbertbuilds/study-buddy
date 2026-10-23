@@ -15,6 +15,19 @@
 
     let questions = [];
     let selectBtn = null;
+    let darkMode = false;
+    let pageObserver = null;
+
+    let rescanPaused = 0;
+    function pauseRescan() {
+        rescanPaused++;
+        if (pageObserver) pageObserver.disconnect();
+    }
+    function resumeRescan() {
+        rescanPaused = Math.max(0, rescanPaused - 1);
+        if (rescanPaused === 0 && pageObserver && document.body)
+            pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
 
     const cleanText = (el) => (el.innerText || "").replace(/\s+/g, " ").trim();
 
@@ -42,6 +55,21 @@
         !!el.closest(
             "nav,header,footer,aside,menu,script,style,noscript,template,textarea,input,select,option,svg,canvas,iframe,code,pre,[role='navigation'],[role='menu']",
         );
+
+    // querySelectorAll misses content composed into open shadow roots, which
+    // is where document editors (Google Docs, some quiz sites) keep their
+    // body text. Walk every element and descend into open shadow roots.
+    function deepCollect(selector) {
+        const found = [];
+        const visit = (root) => {
+            for (const el of root.querySelectorAll(selector)) {
+                found.push(el);
+                if (el.shadowRoot) visit(el.shadowRoot);
+            }
+        };
+        visit(document);
+        return found;
+    }
 
     function escapeHtml(s) {
         return s
@@ -76,7 +104,7 @@
         questions = [];
         const selector =
             "p,li,div,span,td,th,h1,h2,h3,h4,h5,h6,label,legend,blockquote,section,dt,dd,summary";
-        const all = Array.from(document.querySelectorAll(selector));
+        const all = deepCollect(selector);
         const mcBlocks = new Set();
 
         for (const el of all) {
@@ -91,11 +119,11 @@
             if (!isMc) continue;
             let nested = false;
             for (const b of mcBlocks)
-                if (b.contains(el)) {
+                if (b.el.contains(el)) {
                     nested = true;
                     break;
                 }
-            if (!nested) mcBlocks.add(el);
+            if (!nested) mcBlocks.add({ el, text });
         }
 
         const generic = [];
@@ -103,14 +131,14 @@
             if (inIgnoredContext(el)) continue;
             let inside = false;
             for (const b of mcBlocks)
-                if (b.contains(el)) {
+                if (b.el.contains(el)) {
                     inside = true;
                     break;
                 }
             if (inside) continue;
             const text = cleanText(el);
             if (!text || text.length < 10 || text.length > 600) continue;
-            if (/\?\s*$/.test(text)) continue;
+            if (!/\?\s*$/.test(text)) continue;
             generic.push({ el, text });
         }
 
@@ -135,13 +163,20 @@
     }
 
     function highlightQuestions() {
-        removeHighlights();
-        for (const q of questions) {
-            q.el.classList.add(HIGHLIGHT_CLASS);
-            const badge = document.createElement("span");
-            badge.className = BADGE_CLASS;
-            badge.textContent = String(q.index + 1);
-            q.el.prepend(badge);
+        // Our DOM edits must not trigger the page observer, or every highlight
+        // pass schedules another scan forever (and drops open card anchors).
+        pauseRescan();
+        try {
+            removeHighlights();
+            for (const q of questions) {
+                q.el.classList.add(HIGHLIGHT_CLASS);
+                const badge = document.createElement("span");
+                badge.className = BADGE_CLASS;
+                badge.textContent = String(q.index + 1);
+                q.el.prepend(badge);
+            }
+        } finally {
+            resumeRescan();
         }
     }
 
@@ -183,10 +218,13 @@
     let cardEl = null;
 
     function createCard(questionText) {
-        dismissCard();
-        cardEl = document.createElement("div");
-        cardEl.className = "sb-card";
-        cardEl.innerHTML = `
+        pauseRescan();
+        try {
+            dismissCard();
+            cardEl = document.createElement("div");
+            cardEl.className = "sb-card";
+            if (darkMode) cardEl.classList.add("sb-dark");
+            cardEl.innerHTML = `
     <div class="sb-card-head">
       <span class="sb-card-title">Study Buddy</span>
       <button class="sb-card-close" title="Close">&times;</button>
@@ -194,11 +232,14 @@
     <div class="sb-card-question"></div>
     <div class="sb-card-body"><div class="sb-spinner"></div></div>
   `;
-        cardEl.querySelector(".sb-card-question").textContent = questionText;
-        cardEl
-            .querySelector(".sb-card-close")
-            .addEventListener("click", dismissCard);
-        document.body.appendChild(cardEl);
+            cardEl.querySelector(".sb-card-question").textContent = questionText;
+            cardEl
+                .querySelector(".sb-card-close")
+                .addEventListener("click", dismissCard);
+            document.body.appendChild(cardEl);
+        } finally {
+            resumeRescan();
+        }
         return cardEl;
     }
 
@@ -270,11 +311,16 @@
 
     function dismissCard() {
         if (cardEl) {
-            cardEl.remove();
-            cardEl = null;
-            document
-                .querySelectorAll(".sb-badge")
-                .forEach((b) => (b.style.display = ""));
+            pauseRescan();
+            try {
+                cardEl.remove();
+                cardEl = null;
+                document
+                    .querySelectorAll(".sb-badge")
+                    .forEach((b) => (b.style.display = ""));
+            } finally {
+                resumeRescan();
+            }
         }
     }
 
@@ -300,19 +346,25 @@
     }
 
     function showSelectBtn(rect, text) {
-        hideSelectBtn();
-        selectBtn = document.createElement("button");
-        selectBtn.className = "sb-select-btn";
-        selectBtn.textContent = "Ask Study Buddy";
-        selectBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const btnRect = selectBtn.getBoundingClientRect();
+        pauseRescan();
+        try {
             hideSelectBtn();
-            window.getSelection()?.removeAllRanges();
-            showAnswerCardAt(btnRect, text);
-        });
-        document.body.appendChild(selectBtn);
+            selectBtn = document.createElement("button");
+            selectBtn.className = "sb-select-btn";
+            if (darkMode) selectBtn.classList.add("sb-dark");
+            selectBtn.textContent = "Ask Study Buddy";
+            selectBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const btnRect = selectBtn.getBoundingClientRect();
+                hideSelectBtn();
+                window.getSelection()?.removeAllRanges();
+                showAnswerCardAt(btnRect, text);
+            });
+            document.body.appendChild(selectBtn);
+        } finally {
+            resumeRescan();
+        }
         const top = rect.bottom + 6;
         const left = Math.max(
             6,
@@ -323,9 +375,13 @@
     }
 
     function hideSelectBtn() {
-        if (selectBtn) {
+        if (!selectBtn) return;
+        pauseRescan();
+        try {
             selectBtn.remove();
             selectBtn = null;
+        } finally {
+            resumeRescan();
         }
     }
 
@@ -364,6 +420,80 @@
         if (cardEl && cardEl._anchor) positionCard(cardEl._anchor);
     });
 
+    function questionTextsMatch(list) {
+        if (list.length !== questions.length) return false;
+        for (let i = 0; i < list.length; i++)
+            if (list[i].text !== questions[i].text) return false;
+        return true;
+    }
+
+    function runAutoScan() {
+        try {
+            const found = scanQuestions();
+            if (found.length === 0) return;
+            // Skip re-highlighting if it's the same set of live questions;
+            // prevents badge flicker on pages that mutate constantly.
+            const stillConnected = questions.every((q) => q.el.isConnected);
+            if (stillConnected && questionTextsMatch(found)) return;
+            highlightQuestions();
+        } catch (_) {
+            /* ignore scan errors on load */
+        }
+    }
+
+    chrome.storage.local.get("settings", ({ settings }) => {
+        darkMode = settings?.darkMode === true;
+        if (cardEl) cardEl.classList.toggle("sb-dark", darkMode);
+        if (selectBtn) selectBtn.classList.toggle("sb-dark", darkMode);
+        if (!settings || settings.autoScan === false) return;
+        setTimeout(runAutoScan, 800);
+
+        if (document.body) {
+            // Max-wait debounce: pages that mutate continuously (spinners,
+            // tickers) would otherwise restart a plain debounce forever and
+            // never get scanned. At most 3s between full auto-scans.
+            let debounceTimer = null;
+            let lastRun = Date.now();
+            const observer = new MutationObserver(() => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                const delay = Date.now() - lastRun > 3000 ? 200 : 1500;
+                debounceTimer = setTimeout(() => {
+                    lastRun = Date.now();
+                    runAutoScan();
+                }, delay);
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+            pageObserver = observer;
+        }
+    });
+
+    // Live-follow dark-mode changes made in the popup while a card is open.
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local" || !changes.settings) return;
+        darkMode = changes.settings.newValue?.darkMode === true;
+        if (cardEl) cardEl.classList.toggle("sb-dark", darkMode);
+        if (selectBtn) selectBtn.classList.toggle("sb-dark", darkMode);
+    });
+
+    // Multi-frame API: the popup drives this in every frame of the tab via
+    // chrome.scripting, so questions inside iframes are collected too.
+    window.__studyBuddy = {
+        scan: () => scanQuestions(),
+        highlight: () => {
+            if (questions.length) highlightQuestions();
+            return questions.length;
+        },
+        clear: () => {
+            pauseRescan();
+            try {
+                removeHighlights();
+            } finally {
+                resumeRescan();
+            }
+            questions = [];
+        },
+    };
+
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message.type === "scan") {
             try {
@@ -376,7 +506,12 @@
             return false;
         }
         if (message.type === "clear") {
-            removeHighlights();
+            pauseRescan();
+            try {
+                removeHighlights();
+            } finally {
+                resumeRescan();
+            }
             questions = [];
             sendResponse({ ok: true });
             return false;
