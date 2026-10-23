@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Study Buddy — test page</title>
+        <style>
+            :root {
+                --bg: #f7f7f8;
+                --panel: #ffffff;
+                --ink: #18181b;
+                --muted: #6b7280;
+                --line: #e5e7eb;
+                --accent: #4f46e5;
+            }
+            [data-theme="dark"] {
+                --bg: #0f0f11;
+                --panel: #1a1a1e;
+                --ink: #f4f4f5;
+                --muted: #9ca3af;
+                --line: #2e2e33;
+                --accent: #818cf8;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--ink);
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, Arial, sans-serif;
+                line-height: 1.55;
+                padding: 48px 24px 96px;
+            }
+            .page {
+                max-width: 760px;
+                margin: 0 auto;
+            }
+            header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding-bottom: 16px;
+                border-bottom: 1px solid var(--line);
+                margin-bottom: 32px;
+            }
+            header h1 {
+                font-size: 18px;
+                margin: 0;
+                font-weight: 600;
+            }
+            .themeToggle {
+                margin-left: auto;
+                border: 1px solid var(--line);
+                background: var(--panel);
+                color: var(--ink);
+                padding: 6px 12px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+            }
+            article {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 20px 22px;
+                margin-bottom: 16px;
+            }
+            article h2 {
+                margin: 0 0 6px;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .section-note {
+                margin: 0 0 14px;
+                color: var(--muted);
+                font-size: 13px;
+            }
+            .question-list {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            .question {
+                margin: 0 0 10px;
+                padding: 0;
+            }
+            .question:last-child {
+                margin-bottom: 0;
+            }
+            .q-text {
+                font-size: 14.5px;
+                padding: 10px 12px;
+                background: rgba(129, 140, 248, 0.06);
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                color: var(--ink);
+            }
+            .opt {
+                display: block;
+                margin-top: 6px;
+                color: var(--muted);
+            }
+            .tf {
+                color: var(--muted);
+                font-size: 13.5px;
+            }
+            .tf-opt {
+                color: var(--ink);
+            }
+            .tf-or {
+                color: var(--muted);
+                margin: 0 4px;
+            }
+            .load-btn {
+                margin-top: 10px;
+                background: var(--accent);
+                color: white;
+                border: none;
+                padding: 8px 14px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+            }
+            .load-btn:disabled {
+                opacity: 0.55;
+                cursor: default;
+            }
+            .howto {
+                background: var(--panel);
+                border: 1px dashed var(--line);
+                border-radius: 10px;
+                padding: 14px 16px;
+                margin-bottom: 16px;
+                color: var(--muted);
+                font-size: 13.5px;
+            }
+            .howto strong {
+                color: var(--ink);
+            }
+            kbd {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-bottom-width: 2px;
+                border-radius: 4px;
+                padding: 1px 6px;
+                font-size: 12.5px;
+            }
+            footer {
+                color: var(--muted);
+                font-size: 13px;
+                border-top: 1px solid var(--line);
+                padding-top: 12px;
+                margin-top: 24px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="page">
+            <header>
+                <h1>Study Buddy — interactive test fixture</h1>
+                <button type="button" class="themeToggle" id="themeToggle">
+                    Dark
+                </button>
+            </header>
+
+            <main>
+                <article aria-labelledby="mcq-heading">
+                    <h2 id="mcq-heading">Multiple choice</h2>
+                    <p class="section-note">
+                        Pick the best answer for each question.
+                    </p>
+                    <ul class="question-list mcq-set">
+                        <li class="question mcq">
+                            <div class="q-text">
+                                Which organelle is the site of aerobic
+                                respiration?
+                                <span class="opt">A. Ribosome</span>
+                                <span class="opt">B. Mitochondrion</span>
+                                <span class="opt">C. Nucleus</span>
+                                <span class="opt">D. Golgi apparatus</span>
+                            </div>
+                        </li>
+                        <li class="question mcq">
+                            <div class="q-text">
+                                Which blood type is the universal donor?
+                                <span class="opt">A. A negative</span>
+                                <span class="opt">B. O negative</span>
+                                <span class="opt">C. AB positive</span>
+                                <span class="opt">D. B positive</span>
+                            </div>
+                        </li>
+                        <li class="question mcq">
+                            <div class="q-text">
+                                Which structure controls what enters and leaves
+                                a cell?
+                                <span class="opt">A. Cell wall</span>
+                                <span class="opt">B. Plasma membrane</span>
+                                <span class="opt">C. Cytoskeleton</span>
+                                <span class="opt">D. Lysosome</span>
+                            </div>
+                        </li>
+                        <li class="question mcq">
+                            <div class="q-text">
+                                Which organelle modifies and packages proteins
+                                for transport?
+                                <span class="opt">A. Smooth ER</span>
+                                <span class="opt">B. Nucleolus</span>
+                                <span class="opt">C. Golgi apparatus</span>
+                                <span class="opt">D. Peroxisome</span>
+                            </div>
+                        </li>
+                    </ul>
+                </article>
+
+                <article aria-labelledby="tf-heading">
+                    <h2 id="tf-heading">True or false</h2>
+                    <p class="section-note">
+                        Decide whether each statement is correct.
+                    </p>
+                    <ul class="question-list tf-set">
+                        <li class="question tf-q">
+                            <p class="q-text">
+                                Mitochondria contain their own DNA.
+                                <span class="tf">
+                                    <span class="tf-opt">True</span>
+                                    <span class="tf-or">or</span>
+                                    <span class="tf-opt">False</span>
+                                </span>
+                            </p>
+                        </li>
+                        <li class="question tf-q">
+                            <p class="q-text">
+                                Plant cells lack a plasma membrane.
+                                <span class="tf">
+                                    <span class="tf-opt">True</span>
+                                    <span class="tf-or">or</span>
+                                    <span class="tf-opt">False</span>
+                                </span>
+                            </p>
+                        </li>
+                        <li class="question tf-q">
+                            <p class="q-text">
+                                Ribosomes are found in both prokaryotic and
+                                eukaryotic cells.
+                                <span class="tf">
+                                    <span class="tf-opt">True</span>
+                                    <span class="tf-or">or</span>
+                                    <span class="tf-opt">False</span>
+                                </span>
+                            </p>
+                        </li>
+                    </ul>
+                </article>
+
+                <article aria-labelledby="short-heading">
+                    <h2 id="short-heading">Short answer</h2>
+                    <p class="section-note">A sentence or two is enough.</p>
+                    <ul class="question-list short-set">
+                        <li class="question short">
+                            <p class="q-text">
+                                Define osmosis in one sentence?
+                            </p>
+                        </li>
+                        <li class="question short">
+                            <p class="q-text">
+                                Which enzyme in saliva breaks down starch?
+                            </p>
+                        </li>
+                        <li class="question short">
+                            <p class="q-text">
+                                Why do plant cells become firm after watering?
+                            </p>
+                        </li>
+                    </ul>
+                </article>
+
+                <article aria-labelledby="dynamic-heading">
+                    <h2 id="dynamic-heading">On-demand practice set</h2>
+                    <p class="section-note">
+                        Loads after the page has settled, to test live scanning.
+                    </p>
+                    <ul class="question-list" id="dynamicSet"></ul>
+                    <button type="button" class="load-btn" id="loadMore">
+                        Reveal two more questions
+                    </button>
+                </article>
+
+                <div class="howto">
+                    <p><strong>Testing Study Buddy on this page:</strong></p>
+                    <p>
+                        Open the extension popup and press Scan this page
+                        (shortcut
+                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>), then
+                        click a numbered question for an answer.
+                    </p>
+                    <p>
+                        After scanning, use
+                        <strong>Reveal two more questions</strong>
+                        above and scan again to check that questions added after
+                        page load still get detected.
+                    </p>
+                </div>
+            </main>
+
+            <footer>
+                Fixture page for the Study Buddy browser extension. Both color
+                themes are supported.
+            </footer>
+        </div>
+
+        <script>
+            const themeBtn = document.getElementById("themeToggle");
+            const stored = localStorage.getItem("sb-theme");
+            if (stored === "dark" || stored === "light")
+                document.documentElement.dataset.theme = stored;
+            const current = () =>
+                document.documentElement.dataset.theme ||
+                (matchMedia("(prefers-color-scheme: dark)").matches
+                    ? "dark"
+                    : "light");
+            const label = () => (current() === "dark" ? "Light" : "Dark");
+            themeBtn.textContent = label();
+            themeBtn.addEventListener("click", () => {
+                const next = current() === "dark" ? "light" : "dark";
+                document.documentElement.dataset.theme = next;
+                localStorage.setItem("sb-theme", next);
+                themeBtn.textContent = next === "dark" ? "Light" : "Dark";
+            });
+
+            const EXTRA_QUESTIONS = [
+                `<div class="q-text">
+          Which pigment absorbs light during photosynthesis?
+          <span class="opt">A. Chlorophyll</span>
+          <span class="opt">B. Melanin</span>
+          <span class="opt">C. Hemoglobin</span>
+          <span class="opt">D. Carotene</span>
+      </div>`,
+                `<div class="q-text">
+          Which gas do plants take in during photosynthesis?
+          <span class="opt">A. Oxygen</span>
+          <span class="opt">B. Nitrogen</span>
+          <span class="opt">C. Carbon dioxide</span>
+          <span class="opt">D. Methane</span>
+      </div>`,
+            ];
+
+            const loadBtn = document.getElementById("loadMore");
+            const dynamicSet = document.getElementById("dynamicSet");
+            loadBtn.addEventListener("click", () => {
+                for (const html of EXTRA_QUESTIONS) {
+                    const li = document.createElement("li");
+                    li.className = "question mcq";
+                    li.innerHTML = html;
+                    dynamicSet.appendChild(li);
+                }
+                loadBtn.disabled = true;
+                loadBtn.textContent = "Questions loaded";
+            });
+        </script>
+    </body>
+</html>
