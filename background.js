@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
+    modelsByProvider: {},
 };
 
 const GROQ_MODELS = new Set([
@@ -44,6 +45,10 @@ function sanitizeSettings(raw) {
         ? merged.geminiKeys
         : [];
     merged.groqKeys = Array.isArray(merged.groqKeys) ? merged.groqKeys : [];
+    merged.modelsByProvider =
+        merged.modelsByProvider && typeof merged.modelsByProvider === "object"
+            ? merged.modelsByProvider
+            : {};
     return merged;
 }
 
@@ -135,7 +140,7 @@ const CONFIDENCE_INSTRUCTION = `\nAfter your answer, on the very last line, rate
 Use "high" only when you are sure; "medium" when reasonably sure but some doubt; "low" when the question is ambiguous, options are unclear, or you are mostly guessing. Never omit the line.`;
 
 const QUICK_PROMPT =
-    `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**, then 1-2 sentences explaining why. For other questions, give a clear, complete answer. Keep answers brief but never cut them short — finish your thought.` +
+    `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**.` +
     CONFIDENCE_INSTRUCTION;
 
 const EXPLAIN_PROMPT =
