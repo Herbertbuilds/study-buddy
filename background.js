@@ -8,7 +8,6 @@ const DEFAULT_SETTINGS = {
     model: "gemini-3.6-flash",
     autoScan: true,
     answerStyle: "quick",
-    modelsByProvider: {},
 };
 
 const GROQ_MODELS = new Set([
@@ -45,10 +44,6 @@ function sanitizeSettings(raw) {
         ? merged.geminiKeys
         : [];
     merged.groqKeys = Array.isArray(merged.groqKeys) ? merged.groqKeys : [];
-    merged.modelsByProvider =
-        merged.modelsByProvider && typeof merged.modelsByProvider === "object"
-            ? merged.modelsByProvider
-            : {};
     return merged;
 }
 
@@ -140,7 +135,7 @@ const CONFIDENCE_INSTRUCTION = `\nAfter your answer, on the very last line, rate
 Use "high" only when you are sure; "medium" when reasonably sure but some doubt; "low" when the question is ambiguous, options are unclear, or you are mostly guessing. Never omit the line.`;
 
 const QUICK_PROMPT =
-    `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**.` +
+    `Answer exam questions concisely. For MCQs, give the letter AND option text in **bold**, then 1-2 sentences explaining why. For other questions, give a clear, complete answer. Keep answers brief but never cut them short — finish your thought.` +
     CONFIDENCE_INSTRUCTION;
 
 const EXPLAIN_PROMPT =
@@ -309,3 +304,42 @@ async function answerWithGroq(question, apiKey, settings) {
         throw new Error("Groq returned an empty response. Try again.");
     return text.trim();
 }
+
+chrome.commands.onCommand.addListener(async (command) => {
+    if (command !== "scan_page") return;
+    const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+    });
+    if (!tab || tab.id == null) return;
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["content.js"],
+        });
+        await chrome.scripting.insertCSS({
+            target: { tabId: tab.id },
+            files: ["content.css"],
+        });
+    } catch (_) {
+        /* already injected */
+    }
+    try {
+        const res = await chrome.tabs.sendMessage(tab.id, { type: "scan" });
+        const count = res?.questions?.length || 0;
+        await chrome.action.setBadgeText({
+            text: String(count),
+            tabId: tab.id,
+        });
+        await chrome.action.setBadgeBackgroundColor({
+            color: count > 0 ? "#4f46e5" : "#b91c1c",
+            tabId: tab.id,
+        });
+    } catch (_) {
+        await chrome.action.setBadgeText({ text: "!", tabId: tab.id });
+        await chrome.action.setBadgeBackgroundColor({
+            color: "#b91c1c",
+            tabId: tab.id,
+        });
+    }
+});
