@@ -143,3 +143,33 @@
     text-align: center !important;
     vertical-align: middle !important;
 }
+
+.sb-card-confidence {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin: 0 0 8px !important;
+    padding: 3px 10px !important;
+    border-radius: 999px !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+}
+.sb-card-confidence::before {
+    content: "" !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    background: currentColor !important;
+}
+.sb-confidence-high {
+    background: #ecfdf5 !important;
+    color: #15803d !important;
+}
+.sb-confidence-medium {
+    background: #fffbeb !important;
+    color: #b45309 !important;
+}
+.sb-confidence-low {
+    background: #fef2f2 !important;
+    color: #dc2626 !important;
+}

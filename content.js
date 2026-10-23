@@ -7,6 +7,12 @@
     const BADGE_CLASS = "sb-badge";
     const HIGHLIGHT_CLASS = "sb-highlighted";
 
+    const CONFIDENCE_META = {
+        high: { label: "High confidence" },
+        medium: { label: "Medium confidence" },
+        low: { label: "Low confidence — double-check" },
+    };
+
     let questions = [];
     let selectBtn = null;
 
@@ -158,7 +164,7 @@
                         "Could not reach the Study Buddy background worker.",
                 );
             }
-            return res.answer;
+            return { answer: res.answer, confidence: res.confidence || null };
         } catch (err) {
             const msg = String(err?.message || err);
             if (
@@ -213,10 +219,17 @@
 
     function loadAnswer(questionText) {
         askGemini(questionText)
-            .then((answer) => {
+            .then(({ answer, confidence }) => {
                 if (!cardEl) return;
                 const body = cardEl.querySelector(".sb-card-body");
                 body.innerHTML = "";
+                if (confidence && CONFIDENCE_META[confidence]) {
+                    const badge = document.createElement("div");
+                    badge.className =
+                        "sb-card-confidence sb-confidence-" + confidence;
+                    badge.textContent = CONFIDENCE_META[confidence].label;
+                    body.appendChild(badge);
+                }
                 const out = document.createElement("div");
                 out.className = "sb-card-answer";
                 out.innerHTML = renderMarkdown(escapeHtml(answer));
