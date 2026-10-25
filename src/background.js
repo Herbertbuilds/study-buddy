@@ -91,7 +91,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     if (message.type === "scanDocument") {
-        documentPdfText(message.url)
+        scanDocumentWithOffscreen(message.url)
             .then((text) => sendResponse({ ok: true, text }))
             .catch((err) =>
                 sendResponse({
@@ -142,32 +142,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 });
 
-// ---------- PDF document scanning ----------
+// ---------- PDF document scanning (via offscreen document) ----------
+// Service workers can't use dynamic import() (needed by pdf.js) or most DOM
+// APIs, so the actual extraction runs in a hidden offscreen document and the
+// result is sent back here as a message.
 
-async function documentPdfText(url) {
-    const pdfjs = await import(chrome.runtime.getURL("vendor/pdfjs/pdf.min.mjs"));
-    pdfjs.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL(
-        "vendor/pdfjs/pdf.worker.min.mjs",
-    );
-    const res = await fetch(url);
-    if (!res.ok)
-        throw new Error(`Could not download the document (HTTP ${res.status}).`);
-    const data = await res.arrayBuffer();
-    const doc = await pdfjs.getDocument({ data }).promise;
-    const maxPages = Math.min(doc.numPages, 80);
-    const pages = [];
-    for (let i = 1; i <= maxPages; i++) {
-        const page = await doc.getPage(i);
-        const content = await page.getTextContent();
-        pages.push(content.items.map((item) => item.str).join(" "));
-    }
-    const text = pages.join("\n\n");
-    if (!text.trim()) {
+async function ensureOffscreenDocument() {
+    if (!chrome.offscreen) {
         throw new Error(
-            "This document has no extractable text — it may be a scanned image. Try a text-based PDF.",
+            "PDF scanning needs a newer version of this browser (offscreen documents are not supported).",
         );
     }
-    return text;
+    const hasDocument = await chrome.offscreen.hasDocument().catch(() => false);
+    if (hasDocument) return;
+    await chrome.offscreen.createDocument({
+        url: chrome.runtime.getURL("src/offscreen.html"),
+        reasons: [chrome.offscreen.Reason.WORKERS],
+        justification:
+            "Extract text from PDF documents so questions can be scanned.",
+    });
+}
+
+async function scanDocumentWithOffscreen(url) {
+    await ensureOffscreenDocument();
+    try {
+        const res = await chrome.runtime.sendMessage({
+            type: "pdf:getText",
+            url,
+        });
+        if (!res || res.ok !== true)
+            throw new Error(res?.error || "Could not read this document.");
+        return res.text;
+    } finally {
+        // Don't keep a hidden page around between scans.
+        try {
+            if (await chrome.offscreen.hasDocument())
+                await chrome.offscreen.closeDocument();
+        } catch (_) {
+            /* harmless on race — the document is gone either way */
+        }
+    }
 }
 
 // ---------- AI answer pipeline ----------
