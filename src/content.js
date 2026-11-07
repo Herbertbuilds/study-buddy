@@ -3,15 +3,17 @@
     if (window.__studyBuddyInjected) return;
     window.__studyBuddyInjected = true;
 
+    // Shared helpers (src/shared-renderer.js), so markdown/HTML escaping and
+    // confidence labels live in one place for both this script and the popup.
+    const {
+        sbEscapeHtml: escapeHtml,
+        sbRenderMarkdown: renderMarkdown,
+        sbConfidenceMeta: CONFIDENCE_META,
+    } = window;
+
     const MAX_QUESTIONS = 40;
     const BADGE_CLASS = "sb-badge";
     const HIGHLIGHT_CLASS = "sb-highlighted";
-
-    const CONFIDENCE_META = {
-        high: { label: "High confidence" },
-        medium: { label: "Medium confidence" },
-        low: { label: "Low confidence — double-check" },
-    };
 
     let questions = [];
     let selectBtn = null;
@@ -58,46 +60,19 @@
 
     // querySelectorAll misses content composed into open shadow roots, which
     // is where document editors (Google Docs, some quiz sites) keep their
-    // body text. Walk every element and descend into open shadow roots.
+    // body text. Walk every element and descend into every open shadow root
+    // regardless of whether the host itself matched, so both scanning and
+    // cleanup reach content/badges hidden behind a shadow boundary.
     function deepCollect(selector) {
         const found = [];
         const visit = (root) => {
-            for (const el of root.querySelectorAll(selector)) {
-                found.push(el);
+            found.push(...root.querySelectorAll(selector));
+            for (const el of root.querySelectorAll("*")) {
                 if (el.shadowRoot) visit(el.shadowRoot);
             }
         };
         visit(document);
         return found;
-    }
-
-    function escapeHtml(s) {
-        return s
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-    }
-
-    function renderMarkdown(html) {
-        return html
-            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-            .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-            .replace(/`([^`]+)`/g, "<code>$1</code>")
-            .split(/\n{2,}/)
-            .map((block) => {
-                if (/^[-*]\s/.test(block.trim())) {
-                    const items = block
-                        .trim()
-                        .split(/\n/)
-                        .filter((l) => /^[-*]\s/.test(l.trim()))
-                        .map((l) => `<li>${l.replace(/^[-*]\s/, "")}</li>`)
-                        .join("");
-                    return `<ul>${items}</ul>`;
-                }
-                return `<p>${block.replace(/\n/g, "<br>")}</p>`;
-            })
-            .join("");
     }
 
     function scanQuestions() {
@@ -172,7 +147,11 @@
                 q.el.classList.add(HIGHLIGHT_CLASS);
                 const badge = document.createElement("span");
                 badge.className = BADGE_CLASS;
-                badge.textContent = String(q.index + 1);
+                // badgeOffset lets the popup, which numbers questions
+                // sequentially across ALL frames, give later frames their
+                // cumulative start — the badge on the page and the entry in
+                // the popup then refer to the same question.
+                badge.textContent = String((q.badgeOffset || 0) + q.index + 1);
                 q.el.prepend(badge);
             }
         } finally {
@@ -181,10 +160,14 @@
     }
 
     function removeHighlights() {
-        document.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach((el) => {
+        // deepCollect so the cleanup also reaches elements inside open
+        // shadow roots (querySelectorAll stops at the shadow boundary),
+        // or highlights/badges there would survive every rescan.
+        for (const el of deepCollect(`.${HIGHLIGHT_CLASS}`)) {
             el.classList.remove(HIGHLIGHT_CLASS);
             el.querySelectorAll(`.${BADGE_CLASS}`).forEach((b) => b.remove());
-        });
+        }
+        for (const b of deepCollect(`.${BADGE_CLASS}`)) b.remove();
     }
 
     async function askGemini(questionText) {
@@ -315,19 +298,16 @@
             try {
                 cardEl.remove();
                 cardEl = null;
-                document
-                    .querySelectorAll(".sb-badge")
-                    .forEach((b) => (b.style.display = ""));
+                hideBadges(false);
             } finally {
                 resumeRescan();
             }
         }
     }
 
-    function hideBadges() {
-        document
-            .querySelectorAll(".sb-badge")
-            .forEach((b) => (b.style.display = "none"));
+    function hideBadges(hidden) {
+        for (const b of deepCollect(`.${BADGE_CLASS}`))
+            b.style.display = hidden ? "none" : "";
     }
 
     function onMouseUp(e) {
@@ -479,8 +459,13 @@
     // chrome.scripting, so questions inside iframes are collected too.
     window.__studyBuddy = {
         scan: () => scanQuestions(),
-        highlight: () => {
-            if (questions.length) highlightQuestions();
+        // offset = how many questions earlier frames already contributed, so
+        // page badges match the popup's cross-frame numbering.
+        highlight: (offset = 0) => {
+            if (questions.length) {
+                for (const q of questions) q.badgeOffset = offset || 0;
+                highlightQuestions();
+            }
             return questions.length;
         },
         clear: () => {

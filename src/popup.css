@@ -93,6 +93,9 @@ body.dark .style-btn.active {
     font-size: 18px;
     padding: 4px;
     border-radius: 8px;
+    /* Buttons don't inherit body color (UA default is black "buttontext"),
+       which left the settings ✕ dark-on-dark in dark mode. */
+    color: var(--text-primary);
 }
 .icon-btn:hover {
     background: var(--accent-subtle);

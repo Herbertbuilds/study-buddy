@@ -6,10 +6,11 @@
 
 ## Features
 
-- Scans the current page for multiple-choice blocks (including True/False) and questions ending in `?`, then numbers and highlights them
+- Scans the current page for multiple-choice blocks (including True/False) and questions ending in `?`, then numbers and highlights them — on pages with iframes, the page badges match the popup's numbering exactly
 - Click any highlighted question, on the page or in the popup, to get the answer and an explanation
-- **Quick** vs **Explain** answer style, switchable in one click on the popup home screen (saves instantly)
+- **Quick** vs **Explain** answer style, switchable in one click on the popup home screen (saves instantly — switching style or model always re-answers, never serves a stale cached one)
 - **Confidence indicator** (high / medium / low) on every answer, in the popup and on the page
+- **Dark mode** — popup, page highlights, and answer cards update live as you flip the toggle
 - Works with **Google Gemini** or **Groq**, with one-click switching and free-tier-friendly defaults
 - **Document scanning**: parses PDFs opened in the browser (question text is listed in the popup) and collects questions from iframes and open shadow roots, so document-style web apps (Google Docs, embedded editors) are scanned too
 - Multiple API keys per provider, with automatic rotation when a key hits its rate limit
@@ -17,6 +18,8 @@
 - Keyboard shortcut: `Ctrl+Shift+S` (`Cmd+Shift+S` on Mac) to scan the current page
 
 ## Install (unpacked extension in Chrome)
+
+Requires Chrome/Chromium **109+** (the PDF scanner uses offscreen documents; this includes recent Chromium-based browsers).
 
 1. Open `chrome://extensions`
 2. Toggle **Developer mode** (top-right)
@@ -57,8 +60,9 @@
 ## Limitations & disclaimer
 
 - AI answers can be wrong. The confidence indicator is the model's own self-assessment, not a guarantee. Check anything important against your course material.
-- Questions inside closed shadow roots, canvases, or images may not be detected. In PDF documents, questions are answered from the popup only — the native PDF viewer can't be highlighted.
-- Answers from documents and AI can mis-split multi-column or image-heavy PDFs; scanned-image PDFs (no text layer) can't be parsed.
+- Questions inside **closed** shadow roots, canvases, or images may not be detected; questions in **open** shadow roots (Google Docs–style apps) are scanned and their highlights cleaned up correctly, even across rescan passes. In PDF documents, questions are answered from the popup only — the native PDF viewer can't be highlighted.
+- Answers from documents and AI can mis-split multi-column or image-heavy PDFs; scanned-image PDFs (no text layer) can't be parsed. Document scans stop after 90 seconds — if a very large file times out, try a shorter one.
+- Reasoning-heavy models (Groq's gpt-oss, some Gemini Flash versions) spend part of the token budget on hidden "thinking"; the extension caps this and automatically retries once with a larger budget, but on stubborn answers a lighter model is more reliable.
 - Free-tier API keys are rate limited. Adding several keys lets the extension rotate between them, but you may still hit limits during heavy use.
 - Use Study Buddy for studying and practice, and follow your institution's academic integrity rules. Don't use it in assessments where AI help isn't allowed.
 
@@ -69,8 +73,12 @@ study-buddy/
 ├── manifest.json      # MV3 manifest: permissions, popup, service worker, shortcut
 ├── src/
 │   ├── background.js  # Service worker: settings storage, AI API calls, PDF parsing
+│   ├── shared-models.js   # Provider/model list shared by the popup and the worker
+│   ├── shared-renderer.js # Answer rendering helpers shared by the popup and pages
 │   ├── content.js     # Page scanner (frames/shadow DOM), highlights, answer cards
 │   ├── content.css    # Styles injected into pages (highlights, cards)
+│   ├── offscreen.html # Hidden offscreen page host for PDF extraction
+│   ├── offscreen.js   # PDF text extraction (pdf.js needs DOM + dynamic import)
 │   ├── popup.html     # Popup UI: home view, settings panel, answer view
 │   ├── popup.css      # Popup styles
 │   └── popup.js       # Popup logic
@@ -88,7 +96,9 @@ study-buddy/
 
 ```bash
 python3 tools/resize_icons.py tools/icon-source.png   # regenerate icons
-node --check src/popup.js                                # syntax-check after edits (also src/background.js, src/content.js)
+node --check src/popup.js                                # syntax-check after edits
+# (also src/background.js, src/content.js, src/offscreen.js,
+#  src/shared-models.js, src/shared-renderer.js)
 ```
 
 `resize_icons.py` is only needed to regenerate icons and requires [Pillow](https://pypi.org/project/pillow/) (`pip install pillow`). The extension itself is dependency-free at build time — `vendor/pdfjs/` ships the prebuilt [pdf.js](https://github.com/mozilla/pdf.js) library (Apache-2.0) used for PDF text extraction.

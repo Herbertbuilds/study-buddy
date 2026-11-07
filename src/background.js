@@ -1,45 +1,28 @@
 // Study Buddy — background service worker.
+
+// One shared list of providers/models, loaded as a classic script. Must run
+// before DEFAULT_SETTINGS / sanitizeSettings below reference DEFAULT_MODELS.
+// ("scripts" paths resolve relative to this worker's URL, src/background.js.)
+importScripts("shared-models.js");
+
 // ---------- Settings ----------
 const DEFAULT_SETTINGS = {
     provider: "gemini",
     geminiKeys: [],
     groqKeys: [],
-    model: "gemini-3.6-flash",
+    model: DEFAULT_MODELS.gemini,
     autoScan: true,
     answerStyle: "quick",
     modelsByProvider: {},
     darkMode: false,
 };
 
-// Groq decommissioned the llama-3.3/3.1 chat models for non-Enterprise tiers
-// (Aug 2026); these IDs are the currently available ones for free keys.
-const GROQ_MODELS = new Set([
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3.8-27b",
-]);
-
-const GEMINI_MODELS = new Set([
-    "gemini-3.6-flash",
-    "gemini-3.8-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-2.5-flash",
-]);
-
-function defaultModelForProvider(provider) {
-    return provider === "groq" ? "openai/gpt-oss-120b" : "gemini-3.6-flash";
-}
-
 function sanitizeSettings(raw) {
     const merged = { ...DEFAULT_SETTINGS, ...(raw || {}) };
-    if (merged.provider === "groq" && !GROQ_MODELS.has(merged.model)) {
-        merged.model = defaultModelForProvider("groq");
-    } else if (
-        merged.provider === "gemini" &&
-        !GEMINI_MODELS.has(merged.model)
-    ) {
-        merged.model = defaultModelForProvider("gemini");
+    const provider = merged.provider === "groq" ? "groq" : "gemini";
+    merged.provider = provider;
+    if (!MODEL_IDS[provider].has(merged.model)) {
+        merged.model = DEFAULT_MODELS[provider];
     }
 
     merged.geminiKeys = Array.isArray(merged.geminiKeys)
@@ -115,7 +98,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 return;
             }
             try {
-                const cached = getCachedAnswer(message.question);
+                const cached = getCachedAnswer(message.question, settings);
                 if (cached) {
                     sendResponse({
                         ok: true,
@@ -128,7 +111,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     message.question,
                     settings,
                 );
-                setCachedAnswer(message.question, answer);
+                setCachedAnswer(message.question, settings, answer);
                 sendResponse({
                     ok: true,
                     answer: answer.text,
@@ -165,11 +148,24 @@ async function ensureOffscreenDocument() {
 
 async function scanDocumentWithOffscreen(url) {
     await ensureOffscreenDocument();
+    const PDF_SCAN_TIMEOUT_MS = 90_000;
     try {
-        const res = await chrome.runtime.sendMessage({
-            type: "pdf:getText",
-            url,
-        });
+        // Without a timeout a stuck round-trip (offscreen page mid-creation,
+        // hung download) would leave the popup "scanning" forever.
+        const res = await Promise.race([
+            chrome.runtime.sendMessage({ type: "pdf:getText", url }),
+            new Promise((_, reject) =>
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(
+                                "Scanning this document timed out. Try again, or use a shorter file.",
+                            ),
+                        ),
+                    PDF_SCAN_TIMEOUT_MS,
+                ),
+            ),
+        ]);
         if (!res || res.ok !== true)
             throw new Error(res?.error || "Could not read this document.");
         return res.text;
@@ -226,15 +222,27 @@ function saveCacheKey(question) {
     return question.trim().toLowerCase().slice(0, 400);
 }
 
-function getCachedAnswer(question) {
-    const entry = answerCache.get(saveCacheKey(question));
+// Cache key must include the model and answer style, not just the question
+// text — otherwise switching Quick/Explain (or models) serves the stale
+// answer from the previous style for up to the 5-minute TTL.
+function cacheKeyFor(question, settings) {
+    return [
+        settings.answerStyle || "quick",
+        settings.model,
+        saveCacheKey(question),
+    ].join("|");
+}
+
+function getCachedAnswer(question, settings) {
+    const key = cacheKeyFor(question, settings);
+    const entry = answerCache.get(key);
     if (entry && Date.now() - entry.timestamp < CACHE_TTL_MS) return entry;
-    answerCache.delete(saveCacheKey(question));
+    answerCache.delete(key);
     return null;
 }
 
-function setCachedAnswer(question, answer) {
-    answerCache.set(saveCacheKey(question), {
+function setCachedAnswer(question, settings, answer) {
+    answerCache.set(cacheKeyFor(question, settings), {
         text: answer.text,
         confidence: answer.confidence,
         timestamp: Date.now(),
@@ -301,46 +309,60 @@ async function answerWithKeyRotation(question, settings) {
 }
 
 async function answerWithGemini(question, apiKey, settings) {
-    const model = settings.model || DEFAULT_SETTINGS.model;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: question }] }],
-            systemInstruction: {
-                parts: [
-                    {
-                        text:
-                            settings.answerStyle === "explain"
-                                ? EXPLAIN_PROMPT
-                                : QUICK_PROMPT,
-                    },
-                ],
+    let maxTokens = maxTokensFor(settings);
+    // Thinking-style Gemini models spend part of their maxOutputTokens
+    // budget on hidden "thought" tokens, which can leave the visible answer
+    // empty before rendering. When the first call stops at MAX_TOKENS with
+    // no visible text, retry once with a much larger budget (mirrors the
+    // reasoning-model workaround on Groq) instead of erroring out.
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const model = settings.model || DEFAULT_MODELS.gemini;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey,
             },
-            generationConfig: {
-                temperature: 0.2,
-                maxOutputTokens: maxTokensFor(settings),
-            },
-        }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error?.message || `HTTP ${res.status}`);
-    const parts = data?.candidates?.[0]?.content?.parts;
-    const text = Array.isArray(parts)
-        ? parts.map((p) => p.text || "").join("")
-        : "";
-    if (!text.trim())
+            body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: question }] }],
+                systemInstruction: {
+                    parts: [
+                        {
+                            text:
+                                settings.answerStyle === "explain"
+                                    ? EXPLAIN_PROMPT
+                                    : QUICK_PROMPT,
+                        },
+                    ],
+                },
+                generationConfig: {
+                    temperature: 0.2,
+                    maxOutputTokens: maxTokens,
+                },
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok)
+            throw new Error(data?.error?.message || `HTTP ${res.status}`);
+        const candidate = data?.candidates?.[0];
+        const parts = candidate?.content?.parts;
+        const text = Array.isArray(parts)
+            ? parts.map((p) => p.text || "").join("")
+            : "";
+        if (text.trim()) return text.trim();
+        if (candidate?.finishReason === "MAX_TOKENS" && attempt === 0) {
+            maxTokens = maxTokens * 4;
+            continue;
+        }
         throw new Error("Gemini returned an empty response. Try again.");
-    return text.trim();
+    }
+    throw new Error("Gemini returned an empty response. Try again.");
 }
 
 async function answerWithGroq(question, apiKey, settings) {
-    let model = settings.model || defaultModelForProvider("groq");
-    if (!GROQ_MODELS.has(model)) model = defaultModelForProvider("groq");
+    let model = settings.model || DEFAULT_MODELS.groq;
+    if (!MODEL_IDS.groq.has(model)) model = DEFAULT_MODELS.groq;
     const isReasoningModel = /^openai\/gpt-oss/.test(model);
     const body = {
         model,
@@ -388,7 +410,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id == null) return;
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/content.js"] });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/shared-renderer.js", "src/content.js"] });
     await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["src/content.css"] });
   } catch (_) { /* already injected */ }
   try {

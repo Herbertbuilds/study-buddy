@@ -1,35 +1,23 @@
 // Study Buddy — popup logic
 const $ = (sel) => document.querySelector(sel);
 
+// Shared helpers from shared-renderer.js / shared-models.js (loaded via
+// popup.html before this script).
+const {
+    sbEscapeHtml: escapeHtml,
+    sbRenderMarkdown: renderMarkdown,
+    sbConfidenceMeta: CONFIDENCE_META,
+} = window;
+
 let settings = {
     provider: "gemini",
     geminiKeys: [],
     groqKeys: [],
-    model: "gemini-3.6-flash",
+    model: DEFAULT_MODELS.gemini,
     autoScan: true,
     answerStyle: "quick",
     modelsByProvider: {},
     darkMode: false,
-};
-
-const GEMINI_MODELS = [
-    { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash (recommended)" },
-    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash (newest)" },
-    { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite (fastest)" },
-    { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
-    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (legacy)" },
-];
-
-// Llama 3.3/3.1 chat models are Enterprise-only on Groq since Aug 2026.
-const GROQ_MODELS = [
-    { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B (recommended)" },
-    { id: "openai/gpt-oss-20b", label: "GPT-OSS 20B" },
-    { id: "qwen/qwen3.8-27b", label: "Qwen 3.8 27B (preview)" },
-];
-
-const DEFAULT_MODELS = {
-    groq: "openai/gpt-oss-120b",
-    gemini: "gemini-3.6-flash",
 };
 
 const els = {
@@ -297,24 +285,34 @@ async function scanPage() {
             func: () => (window.__studyBuddy ? window.__studyBuddy.scan() : []),
         });
         const perFrame = (results || []).filter((r) => (r.result || []).length);
-        await Promise.all(
-            perFrame.map((r) =>
-                chrome.scripting.executeScript({
-                    target: { tabId: tab.id, frameIds: [r.frameId] },
-                    func: () => window.__studyBuddy?.highlight(),
-                }),
-            ),
-        );
+        // Merge in the same order the frames are highlighted, and count how
+        // many questions each frame actually contributed, so page badges can
+        // be numbered exactly like this merged popup list.
         const seen = new Set();
         const questions = [];
-        for (const frame of perFrame) {
+        const addedPerFrame = perFrame.map((frame) => {
+            let added = 0;
             for (const q of frame.result || []) {
                 const key = q.text.toLowerCase();
                 if (seen.has(key)) continue;
                 seen.add(key);
                 questions.push({ text: q.text });
+                added++;
             }
-        }
+            return added;
+        });
+        let offset = 0;
+        await Promise.all(
+            perFrame.map((r, i) => {
+                const start = offset;
+                offset += addedPerFrame[i];
+                return chrome.scripting.executeScript({
+                    target: { tabId: tab.id, frameIds: [r.frameId] },
+                    func: (o) => window.__studyBuddy?.highlight(o),
+                    args: [start],
+                });
+            }),
+        );
         renderQuestionList(questions);
         saveLastScan((tab.url || "").split("#")[0], questions);
         setStatus(
@@ -389,7 +387,7 @@ async function ensureContentScript(tabId) {
     try {
         await chrome.scripting.executeScript({
             target: { tabId, allFrames: true },
-            files: ["src/content.js"],
+            files: ["src/shared-renderer.js", "src/content.js"],
         });
     } catch (_) {}
     try {
@@ -452,7 +450,7 @@ function renderProviderUI(provider) {
 function populateModelSelect(provider) {
     const select = els.modelSelect;
     select.innerHTML = "";
-    const models = provider === "groq" ? GROQ_MODELS : GEMINI_MODELS;
+    const models = PROVIDER_MODELS[provider === "groq" ? "groq" : "gemini"];
     els.modelHint.textContent =
         provider === "groq"
             ? "Groq hosts OpenAI-format models only. Gemini models won't work with Groq."
@@ -517,10 +515,12 @@ async function saveSettings() {
         els.settingsMsg.classList.add("error");
         return;
     }
+    // Read BOTH lists and keep them: unsaved edits to the inactive
+    // provider's keys used to be silently dropped on every save.
     settings = {
         provider,
-        geminiKeys: provider === "groq" ? settings.geminiKeys || [] : keys,
-        groqKeys: provider === "groq" ? keys : settings.groqKeys || [],
+        geminiKeys: getKeyValues(els.geminiKeyList),
+        groqKeys: getKeyValues(els.apiKeyList),
         model: els.modelSelect.value,
         autoScan: els.autoScanToggle.checked,
         answerStyle: settings.answerStyle || "quick",
@@ -623,7 +623,7 @@ async function persistSettings() {
 
 function populateQuickModelSelect() {
     const provider = settings.provider || "gemini";
-    const models = provider === "groq" ? GROQ_MODELS : GEMINI_MODELS;
+    const models = PROVIDER_MODELS[provider === "groq" ? "groq" : "gemini"];
     const select = els.quickModelSelect;
     select.innerHTML = "";
     for (const m of models) {
@@ -640,15 +640,12 @@ function populateQuickModelSelect() {
               ? settings.model
               : DEFAULT_MODELS[provider] || models[0].id;
     select.value = useModel;
-    if (settings.model !== useModel) settings.model = useModel;
+    // Pure render: previously this also silently mutated settings.model,
+    // which could drift storage until some later save wrote it.
 }
 
 function buildConfidenceBadge(confidence) {
-    const meta = {
-        high: { label: "High confidence" },
-        medium: { label: "Medium confidence" },
-        low: { label: "Low confidence — double-check" },
-    }[confidence];
+    const meta = CONFIDENCE_META[confidence];
     if (!meta) return null;
     const wrap = document.createElement("div");
     wrap.className = "confidence-badge confidence-" + confidence;
@@ -692,35 +689,6 @@ async function answerQuestion(questionText) {
         els.answerBody.appendChild(out);
         setStatus("Something went wrong.", "error");
     }
-}
-
-function escapeHtml(s) {
-    return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
-
-function renderMarkdown(html) {
-    return html
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-        .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .split(/\n{2,}/)
-        .map((block) => {
-            if (/^[-*]\s/.test(block.trim())) {
-                const items = block
-                    .trim()
-                    .split(/\n/)
-                    .filter((l) => /^[-*]\s/.test(l.trim()))
-                    .map((l) => `<li>${l.replace(/^[-*]\s/, "")}</li>`)
-                    .join("");
-                return `<ul>${items}</ul>`;
-            }
-            return `<p>${block.replace(/\n/g, "<br>")}</p>`;
-        })
-        .join("");
 }
 
 function setStatus(text, kind) {
